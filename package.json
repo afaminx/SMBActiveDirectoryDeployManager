@@ -15,7 +15,7 @@
     "appId": "dev.andresgp.addeploymanager",
     "productName": "AD Deploy Manager",
     "directories": {
-      "output": "codex/bin/mod-rev-1.6",
+      "output": "codex/bin/mod-rev-1.8",
       "buildResources": "img"
     },
     "compression": "maximum",
@@ -52,6 +52,7 @@
   "author": "gpandres",
   "license": "AGPL-3.0-only",
   "devDependencies": {
+    "acorn": "8.19.0",
     "electron": "^33.0.0",
     "electron-builder": "^26.8.1",
     "electron-packager": "^17.1.2",

@@ -134,7 +134,7 @@ const WizardState = {
   // Returns a deep copy of the named section. Caller gets a snapshot, not a live ref.
   get(section) {
     if (!_VALID_SECTIONS.includes(section)) {
-      console.warn('[WizardState] get: sección desconocida "' + section + '"');
+      console.warn(t('gui.wizardstateGetUnknownSection') + section + '"');
       return {};
     }
     return _clone(_state[section]);
@@ -144,7 +144,7 @@ const WizardState = {
   // arrays and primitives are replaced wholesale.
   set(section, data) {
     if (!_VALID_SECTIONS.includes(section)) {
-      console.warn('[WizardState] set: sección desconocida "' + section + '"');
+      console.warn(t('gui.wizardstateSetUnknownSection') + section + '"');
       return;
     }
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -180,7 +180,7 @@ const WizardState = {
   setStep(n) {
     const parsed = Number(n);
     if (!Number.isInteger(parsed)) {
-      console.warn('[WizardState] setStep: valor inválido "' + n + '"');
+      console.warn(t('gui.wizardstateSetstepInvalidValue') + n + '"');
       return;
     }
     _state.currentStep = Math.min(4, Math.max(1, parsed));

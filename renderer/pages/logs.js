@@ -75,7 +75,7 @@ const LogsPage = {
         <section class="logs-main">
           <div class="logs-toolbar">
             <div class="form-group" style="flex:1;min-width:200px;">
-              <label class="form-label">${t('logs.searchLabel') || 'Buscar en mensaje'}</label>
+              <label class="form-label">${t('logs.searchLabel') || t('gui.searchMessages')}</label>
               <input class="form-input" id="logs-q" placeholder="${t('logs.searchPh') || 'texto libre...'}">
             </div>
             <div class="form-group" style="min-width:200px;">
@@ -116,7 +116,7 @@ const LogsPage = {
           </div>
 
           <div class="logs-pagination">
-            <button class="btn btn-secondary" id="logs-load-more" disabled>${t('logs.loadMore') || 'Cargar más'}</button>
+            <button class="btn btn-secondary" id="logs-load-more" disabled>${t('logs.loadMore') || t('gui.loadMore')}</button>
             <span id="logs-count" class="logs-muted">0</span>
           </div>
         </section>
@@ -138,7 +138,7 @@ const LogsPage = {
       return `${t('logs.backendOffline') || 'Servidor no alcanzable'} - cola: ${st.queueSize || 0}`;
     }
     if (!st.canWrite) {
-      return `${t('logs.backendDedicated') || 'Servidor dedicado'} - ingesta sin clave`;
+      return `${t('logs.backendDedicated') || 'Servidor dedicado'} - ${t('gui.ingestKeyMissing')}`;
     }
     return `${t('logs.backendDedicated') || 'Servidor dedicado'} - ${st.host || ''}`;
   },
@@ -187,7 +187,7 @@ const LogsPage = {
     const ul = document.getElementById('logs-recent');
     if (!ul) return;
     if (!recent.length) {
-      ul.innerHTML = `<li class="logs-muted">${t('logs.noRecent') || 'Sin actividad reciente'}</li>`;
+      ul.innerHTML = `<li class="logs-muted">${t('logs.noRecent') || t('gui.noRecentActivity')}</li>`;
       return;
     }
     ul.innerHTML = recent.map(r => {
@@ -290,7 +290,7 @@ const LogsPage = {
     if (btn) {
       btn.disabled = !this._cursor;
       btn.textContent = this._cursor
-        ? (t('logs.loadMore') || 'Cargar más')
+        ? (t('logs.loadMore') || t('gui.loadMore'))
         : (t('logs.endOfList') || 'Fin del listado');
     }
     const count = document.getElementById('logs-count');
@@ -301,7 +301,7 @@ const LogsPage = {
     const tbody = document.getElementById('logs-tbody');
     if (!tbody) return;
     if (!this._items.length) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">${t('logs.empty') || 'Sin resultados con los filtros actuales'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">${t('logs.empty') || t('gui.noResultsWithTheCurrentFilters')}</td></tr>`;
       return;
     }
     tbody.innerHTML = this._items.map(r => {

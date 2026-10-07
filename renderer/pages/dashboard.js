@@ -119,26 +119,26 @@ const DashboardPage = {
         ` : ''}
         </div>
 
-        <!-- Telemetría de Instalaciones -->
+        <!-- Installation telemetry -->
         <div class="card">
           <div class="card-title" style="display:flex;align-items:center;gap:8px">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-            Telemetría de Despliegues (Últimas 24h)
+            ${t('gui.deploymentTelemetryLast24Hours')}
           </div>
           <div style="display:flex; gap:16px; margin-top:20px; flex-wrap:wrap;">
-            <div class="stat-card" onclick="App.navigate('logs'); setTimeout(() => { const el = document.getElementById('logs-q'); if(el) { el.value='install_success'; el.dispatchEvent(new Event('input')) } }, 100);" style="cursor:pointer; flex:1; min-width:140px;" title="Instalaciones OK">
+            <div class="stat-card" onclick="App.navigate('logs'); setTimeout(() => { const el = document.getElementById('logs-q'); if(el) { el.value='install_success'; el.dispatchEvent(new Event('input')) } }, 100);" style="cursor:pointer; flex:1; min-width:140px;" title="${t('gui.successfulInstallations')}">
               <div class="stat-icon green" style="margin-bottom: 12px; width:38px; height:38px;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </div>
-              <div class="card-label">Instalaciones OK</div>
+              <div class="card-label">${t('gui.successfulInstallations')}</div>
               <div class="card-value">${installOk}</div>
             </div>
 
-            <div class="stat-card" onclick="App.navigate('logs'); setTimeout(() => { const el = document.getElementById('logs-q'); if(el) { el.value='install_failed'; el.dispatchEvent(new Event('input')) } }, 100);" style="cursor:pointer; flex:1; min-width:140px;" title="Instalaciones Fallidas">
+            <div class="stat-card" onclick="App.navigate('logs'); setTimeout(() => { const el = document.getElementById('logs-q'); if(el) { el.value='install_failed'; el.dispatchEvent(new Event('input')) } }, 100);" style="cursor:pointer; flex:1; min-width:140px;" title="${t('gui.failedInstallations')}">
               <div class="stat-icon red" style="margin-bottom: 12px; width:38px; height:38px;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
               </div>
-              <div class="card-label">Instalaciones Fallidas</div>
+              <div class="card-label">${t('gui.failedInstallations')}</div>
               <div class="card-value">${installFail}</div>
             </div>
           </div>
@@ -207,14 +207,14 @@ const DashboardPage = {
         ${!App.rsatAvailable ? `
           <div style="margin-top:12px;padding:12px;background:var(--accent-danger-dim);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-sm);">
             <div style="font-size:var(--font-sm);color:#fca5a5;">
-              <strong>⚠ Active Directory no disponible</strong>
+              <strong>⚠ ${t('gui.activeDirectoryUnavailable')}</strong>
               <p style="margin-top:6px;color:var(--text-muted);">${t('dashboard.possibleCauses')}</p>
               <ul style="margin:6px 0 0 16px;color:var(--text-muted);line-height:1.8;">
                 <li>${t('dashboard.cause1')}</li>
                 <li>${t('dashboard.cause2')}</li>
                 <li>${t('dashboard.cause3')}</li>
               </ul>
-              <p style="margin-top:8px;color:var(--text-muted);">Instala RSAT con: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;font-size:var(--font-xs);">Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code></p>
+              <p style="margin-top:8px;color:var(--text-muted);">${t('gui.installGroupPolicyToolsWith')} <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;font-size:var(--font-xs);">Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code></p>
             </div>
           </div>
         ` : ''}
@@ -238,7 +238,7 @@ const DashboardPage = {
     const label = isD
       ? (st.online
           ? `${t('logs.backendDedicated') || 'Servidor dedicado'} — ${st.host || ''}`
-          : `${t('logs.backendOffline') || 'Servidor no alcanzable'} · cola ${st.queueSize}`)
+          : `${t('logs.backendOffline') || 'Servidor no alcanzable'}${t('gui.queue')}${st.queueSize}`)
       : (t('logs.backendLocal') || 'Almacenamiento local');
     el.innerHTML = `
       <div style="width:10px;height:10px;border-radius:50%;background:${dotColor};box-shadow:0 0 8px ${shadow};flex-shrink:0;"></div>

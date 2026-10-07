@@ -58,14 +58,14 @@ const BundlesPage = {
           <div style="display:flex; align-items:center; gap:var(--space-sm); flex:1; justify-content:flex-end;">
             <label class="checkbox-wrapper" style="margin-right: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
               <input type="checkbox" id="select-all-bundles" onchange="BundlesPage.toggleSelectAll(this.checked)">
-              <span style="font-size:var(--font-sm); color:var(--text-secondary);">${t('apps.selectAll') || 'Seleccionar Todo'}</span>
+              <span style="font-size:var(--font-sm); color:var(--text-secondary);">${t('apps.selectAll') || t('gui.selectAll')}</span>
             </label>
             <div style="position:relative; min-width:180px; max-width:280px; flex:1;">
               <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.4" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input type="text" class="form-input" id="bundles-search" placeholder="${t('bundles.search')}" autocomplete="off" style="padding-left:34px;">
             </div>
             <div class="view-toggle">
-              <button class="view-toggle-btn ${this._viewMode === 'grid' ? 'active' : ''}" data-view="grid" title="Cuadrícula">
+              <button class="view-toggle-btn ${this._viewMode === 'grid' ? 'active' : ''}" data-view="grid" title="${t('gui.grid')}">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
               </button>
               <button class="view-toggle-btn ${this._viewMode === 'list' ? 'active' : ''}" data-view="list" title="Lista">
@@ -463,15 +463,15 @@ const BundlesPage = {
         <div style="display:flex;flex-direction:column;gap:8px;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
             <input type="checkbox" id="bdel-chk-gpo" checked style="width:auto;">
-            <span>${t('apps.bulkDeleteCleanGpo') || 'Eliminar GPOs asociadas de AD (si existen)'}</span>
+            <span>${t('apps.bulkDeleteCleanGpo') || t('gui.deleteAssociatedAdGposIfPresent')}</span>
           </label>
         </div>`;
       const footer = `
         <button class="btn btn-secondary" onclick="App.closeModal(); window._bulkDeleteResolve({confirmed:false, adCleanup:false})">${t('common.cancel')}</button>
         <div style="flex:1"></div>
-        <button class="btn btn-danger" id="bdel-confirm-btn">${t('apps.bulkDeleteConfirm') || 'Eliminar ' + ids.length + ' bundles'}</button>`;
+        <button class="btn btn-danger" id="bdel-confirm-btn">${t('apps.bulkDeleteConfirm') || t('gui.delete') + ids.length + ' bundles'}</button>`;
       window._bulkDeleteResolve = resolve;
-      App.openModal(t('apps.bulkDeleteTitle') || 'Eliminar bundles', body, footer);
+      App.openModal(t('apps.bulkDeleteTitle') || t('gui.deleteBundles'), body, footer);
       document.getElementById('bdel-confirm-btn')?.addEventListener('click', () => {
         const adCleanup = document.getElementById('bdel-chk-gpo')?.checked ?? false;
         App.closeModal();
@@ -481,7 +481,7 @@ const BundlesPage = {
 
     if (!confirmed) return;
 
-    App.toast(t('apps.bulkDeleting') || `Eliminando ${ids.length} bundles...`, 'info');
+    App.toast(t('apps.bulkDeleting') || `${t('gui.deleting')}${ids.length} bundles...`, 'info');
     try {
       let successCount = 0;
       for (const id of ids) {
@@ -493,7 +493,7 @@ const BundlesPage = {
         await window.api.bundles.delete(id);
         successCount++;
       }
-      App.toast(t('apps.bulkDeleteSuccess').replace('{count}', successCount) || `Se eliminaron ${successCount} bundles.`, 'success');
+      App.toast(t('apps.bulkDeleteSuccess').replace('{count}', successCount) || `${t('gui.deleted')}${successCount} bundles.`, 'success');
       this.clearSelection();
       App.navigate('bundles');
     } catch (err) {
@@ -507,7 +507,7 @@ const BundlesPage = {
     if (this.selectedIds.size === 0) return;
     const ids = Array.from(this.selectedIds);
     
-    App.toast(t('bundles.bulkDeploying') || `Encolando despliegue de ${ids.length} bundles...`, 'info');
+    App.toast(t('bundles.bulkDeploying') || `${t('gui.queuingDeploymentOf')}${ids.length} bundles...`, 'info');
     
     try {
       let successCount = 0;
@@ -542,7 +542,7 @@ const BundlesPage = {
 
     const appsHtml = bundle.apps && bundle.apps.length > 0
       ? bundle.apps.map(a => `<span class="app-chip" style="display:inline-block; margin:2px;">${App._esc(a.name)}</span>`).join('')
-      : `<span style="color:var(--text-muted); font-size:13px;">${t('bundles.emptyApps') || 'Sin apps incluidas'}</span>`;
+      : `<span style="color:var(--text-muted); font-size:13px;">${t('bundles.emptyApps') || t('gui.noAppsIncluded')}</span>`;
 
     const body = `
       <div style="display:flex; flex-direction:column; gap:16px;">
@@ -581,12 +581,12 @@ const BundlesPage = {
           ${row(t('apps.detailVersion'), App._esc(bundle.version || '1.0.0'))}
           ${row(t('apps.publishedState', 'Estado publicado'), App._esc(statusText))}
           ${row(t('apps.detailNotifyUser'), bundle.notifyUser ? '&#10003;' : '&#10007;')}
-          ${row(t('bundles.createGpo') || 'Crear GPO automáticamente', bundle.createGPO ? '&#10003;' : '&#10007;')}
+          ${row(t('bundles.createGpo') || t('gui.createGpoAutomatically'), bundle.createGPO ? '&#10003;' : '&#10007;')}
         </div>
 
         <!-- Paths -->
         <div class="card" style="padding:12px 16px; margin:0;">
-          <div style="font-weight:600; font-size:13px; color:var(--text-secondary); margin-bottom:4px;">${t('apps.detailSectionPaths') || 'Rutas de Archivo'}</div>
+          <div style="font-weight:600; font-size:13px; color:var(--text-secondary); margin-bottom:4px;">${t('apps.detailSectionPaths') || t('gui.filePaths')}</div>
           ${row(t('apps.detailDeployPath'), bundle.deployedPath ? '<span style="font-family:monospace; font-size:12px;">' + App._esc(bundle.deployedPath) + '</span>' : '-')}
           ${row(t('apps.uninstallDeployPath', 'Ruta uninstall'), bundle.uninstallDeployedPath ? '<span style="font-family:monospace; font-size:12px;">' + App._esc(bundle.uninstallDeployedPath) + '</span>' : '-')}
         </div>
@@ -606,7 +606,7 @@ const BundlesPage = {
     `;
 
     App.openModal(t('common.details') || 'Detalles del Bundle', body, `
-      <button class="btn btn-secondary" onclick="App.closeModal()">${t('common.close') || 'Cerrar'}</button>
+      <button class="btn btn-secondary" onclick="App.closeModal()">${t('common.close') || t('gui.close')}</button>
       ${canPublishUninstall ? `<button class="btn btn-warning" onclick="App.closeModal(); BundlesPage.uninstallBundle('${bundle.id}')">${t('apps.uninstallAction', 'Desinstalar')}</button>` : ''}
       ${(!isDeployed || publishedAction === 'uninstall') ? `<button class="btn btn-success" onclick="App.closeModal(); BundlesPage.deployBundle('${bundle.id}')">${this.getInstallActionLabel(bundle)}</button>` : ''}
     `);
@@ -855,7 +855,7 @@ const BundlesPage = {
       hiddenEl.value = JSON.stringify(state.selectedOUs || []);
       const chips = this.renderOUChips(state.selectedOUs || []);
       const clearBtn = (state.selectedOUs || []).length > 0
-        ? `<button type="button" class="btn btn-ghost btn-sm" id="btn-bundle-ou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || 'Borrar selección'}</button>`
+        ? `<button type="button" class="btn btn-ghost btn-sm" id="btn-bundle-ou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || t('gui.clearSelection')}</button>`
         : '';
       selectedEl.innerHTML = chips + clearBtn;
 
@@ -923,7 +923,7 @@ const BundlesPage = {
       hiddenEl.value = JSON.stringify(state.selectedOUs || []);
       const chips = this.renderOUChips(state.selectedOUs || []);
       const clearBtn = (state.selectedOUs || []).length > 0
-        ? `<button type="button" class="btn btn-ghost btn-sm" id="btn-bundle-ou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || 'Borrar selección'}</button>`
+        ? `<button type="button" class="btn btn-ghost btn-sm" id="btn-bundle-ou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || t('gui.clearSelection')}</button>`
         : '';
       selectedEl.innerHTML = chips + clearBtn;
 
@@ -1109,19 +1109,19 @@ const BundlesPage = {
           id: 'chk-bdel-unlink',
           checked: true,
           title: t('apps.cleanGpoOption'),
-          hint: 'Quita la vinculacion de la GPO en las OUs asociadas'
+          hint: t('gui.removeTheGpoLinkFromItsAssociatedOus')
         }) : ''}
         ${hasGPO ? this.renderDeleteOptionCard({
           id: 'chk-bdel-clean',
           checked: true,
           title: t('apps.cleanSysvolOption'),
-          hint: 'Elimina el script de inicio del bundle en SYSVOL'
+          hint: t('gui.removeTheBundleStartupScriptFromSysvol')
         }) : ''}
         ${hasGPO ? this.renderDeleteOptionCard({
           id: 'chk-bdel-gpo',
           checked: true,
           title: t('apps.deleteGpoOption'),
-          hint: 'Borra la GPO de Active Directory si ya no se necesita'
+          hint: t('gui.deleteTheAdGpoIfItIsNo')
         }) : ''}
       </div>
     `;

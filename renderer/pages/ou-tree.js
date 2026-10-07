@@ -157,14 +157,10 @@ const OUsPage = {
       // Orphan GPO detection — apps whose gpoName no longer exists in AD
       this.state.orphanGPOAppIds = new Set();
       if (gposResult?.success && Array.isArray(gposResult.data)) {
-        const existingGpoNames = new Set(
-          gposResult.data
-            .map(g => (g && typeof g.DisplayName === 'string' ? g.DisplayName.trim() : ''))
-            .filter(Boolean)
-        );
+        const managedNames = this.state.apps.map(app => app.gpoName).filter(Boolean);
         for (const app of this.state.apps) {
           const name = typeof app?.gpoName === 'string' ? app.gpoName.trim() : '';
-          if (this.isProgramManagedGPOName(name) && !existingGpoNames.has(name)) {
+          if (this.isProgramManagedGPOName(name) && !GpoNames.resolve(name, gposResult.data, managedNames)) {
             this.state.orphanGPOAppIds.add(app.id);
           }
         }

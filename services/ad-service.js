@@ -4,16 +4,17 @@ const fs = require('fs');
 const os = require('os');
 const { dcSnippet } = require('./ldap-snippets');
 const { gpoScriptHelpers } = require('./gpo-script-snippets');
+const { gpoNameHelpers, quoteGpoName } = require('./gpo-name-snippets');
+
+function gpoNamesSnippet() {
+  const names = normalizeStringArray(testPowerShellRunner ? testManagedGpoNames : [
+    ...require('./app-service').getAll().map(app => app.gpoName),
+    ...require('./bundle-service').getAll().map(bundle => bundle.gpoName)
+  ]);
+  return gpoNameHelpers + '\n$configuredGpoNames = @(' + names.map(name => `'${quoteGpoName(name)}'`).join(',') + ')\n';
+}
 
 // ─── Input sanitization helpers ──────────────────────────────────────────────
-
-// Sanitize user input before interpolating into PowerShell single-quoted strings.
-// Allowlist: alphanumeric, whitespace, and characters legitimately used in AD
-// object names (DN components, email-style UPNs, hyphenated names).
-function sanitizePSInput(str) {
-  if (typeof str !== 'string') return '';
-  return str.replace(/[^a-zA-Z0-9\s\-_.,=@]/g, '').trim();
-}
 
 // Sanitize an AD Distinguished Name for embedding in a PS single-quoted string.
 // Inside '...' only the single quote itself needs escaping (doubled).
@@ -121,6 +122,7 @@ function validateScriptPath(scriptPath, config) {
 // ─── PowerShell execution ────────────────────────────────────────────────────
 
 let testPowerShellRunner = null;
+let testManagedGpoNames = [];
 const DEFAULT_PS_TIMEOUT_MS = 120000; // 2 min per command
 
 // Fire-and-forget log helper. Wrapped in try/catch so it never
@@ -186,13 +188,14 @@ function runPowerShell(command, { timeoutMs = DEFAULT_PS_TIMEOUT_MS, label = '' 
 
 // ─── JSON helpers ────────────────────────────────────────────────────────────
 
-function parseJsonArray(raw, { where = 'JSON' } = {}) {
+function parseJsonArray(raw, { where = 'JSON', strict = false } = {}) {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
     if (parsed === null || parsed === undefined) return [];
     return Array.isArray(parsed) ? parsed : [parsed];
   } catch (e) {
+    if (strict) throw Error(`Invalid ${where}: ${e.message}`);
     console.error(`Error parsing ${where}:`, e.message);
     return [];
   }
@@ -370,9 +373,9 @@ const adService = {
     try {
       const config = require('./config').getConfig();
       const json = await runPowerShell(
-        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; Get-GPO -All -Domain $domain -Server $adServer | Select-Object DisplayName,Id,GpoStatus,CreationTime,ModificationTime | ConvertTo-Json -Depth 3`
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; Get-GPO -All -Domain $domain -Server $adServer -ErrorAction Stop | Select-Object DisplayName,Id,GpoStatus,CreationTime,ModificationTime | ConvertTo-Json -Depth 3`
       );
-      return { success: true, data: parseJsonArray(json, { where: 'GPOs JSON' }) };
+      return { success: true, data: parseJsonArray(json, { where: 'GPOs JSON', strict: true }) };
     } catch (err) {
       return { success: false, error: err.message, data: [] };
     }
@@ -380,18 +383,20 @@ const adService = {
 
   async linkGPOtoOU(gpoName, ouDN) {
     const config = require('./config').getConfig();
-    const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
+    const safeGpo = quoteGpoName(gpoName);
     const safeOU = sanitizeDN(ouDN);
     const script = `
 
       try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }
       ${dcSnippet(config.preferredDC)}
+      ${gpoNamesSnippet()}
+      $resolvedGpoName = Get-DeploymentGpoName '${safeGpo}'
       try {
-        New-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+        New-GPLink -Name $resolvedGpoName -Target '${safeOU}' -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
         @{ ok = $true } | ConvertTo-Json -Compress
       } catch {
         if ($_.Exception.Message -match 'already linked|ya est.* vinculad') {
-          Set-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+          Set-GPLink -Name $resolvedGpoName -Target '${safeOU}' -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
           @{ ok = $true; code = 'REACTIVATED' } | ConvertTo-Json -Compress
         } else { throw }
       }
@@ -410,22 +415,24 @@ const adService = {
     if (!normalized.length) return [];
 
     const config = require('./config').getConfig();
-    const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
+    const safeGpo = quoteGpoName(gpoName);
     const arrayLiteral = toPSSingleQuotedArray(normalized);
     const script = `
 
       try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }
       ${dcSnippet(config.preferredDC)}
+      ${gpoNamesSnippet()}
+      $resolvedGpoName = Get-DeploymentGpoName '${safeGpo}'
       $targets = ${arrayLiteral}
       $results = @()
       foreach ($ou in $targets) {
         try {
-          New-GPLink -Name '${safeGpo}' -Target $ou -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+          New-GPLink -Name $resolvedGpoName -Target $ou -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
           $results += [pscustomobject]@{ ouDN = $ou; ok = $true }
         } catch {
           if ($_.Exception.Message -match 'already linked|ya est.* vinculad') {
             try {
-              Set-GPLink -Name '${safeGpo}' -Target $ou -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+              Set-GPLink -Name $resolvedGpoName -Target $ou -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
               $results += [pscustomobject]@{ ouDN = $ou; ok = $true; code = 'REACTIVATED' }
             } catch {
               $results += [pscustomobject]@{ ouDN = $ou; ok = $false; error = $_.Exception.Message }
@@ -464,7 +471,7 @@ const adService = {
       return { success: false, error: e.message, code: 'INVALID_SCRIPT_PATH' };
     }
 
-    const safeGpoName = sanitizePSInput(gpoName).replace(/'/g, "''");
+    const safeGpoName = quoteGpoName(gpoName);
     const safeScriptPath = validatedPath.replace(/'/g, "''");
     const normalizedOUs = normalizeDNArray(ouDN);
     const ouTargetsArray = toPSSingleQuotedArray(normalizedOUs);
@@ -481,11 +488,13 @@ const adService = {
         $ouTargets = ${ouTargetsArray}
         $createdNew = $false
 
-        $gpo = Get-GPO -Name $gpoName -Domain $domain -Server $adServer -ErrorAction SilentlyContinue
+        ${gpoNamesSnippet()}
+        $gpo = Resolve-DeploymentGpo $gpoName
         if (-not $gpo) {
           $gpo = New-GPO -Name $gpoName -Domain $domain -Server $adServer -ErrorAction Stop
           $createdNew = $true
         }
+        $gpoName = $gpo.DisplayName
         $gpoGuid = "{" + $gpo.Id.ToString() + "}"
         
 
@@ -544,10 +553,10 @@ const adService = {
 
   async deleteGPO(gpoName) {
     const config = require('./config').getConfig();
-    const safe = sanitizePSInput(gpoName).replace(/'/g, "''");
+    const safe = quoteGpoName(gpoName);
     return withGPOLock(gpoName, async () => {
       const result = await runPSJson(
-        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; Remove-GPO -Name '${safe}' -Domain $domain -Server $adServer -ErrorAction Stop; @{ ok = $true } | ConvertTo-Json -Compress`,
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; ${gpoNamesSnippet()}; $resolvedGpoName = Get-DeploymentGpoName '${safe}'; Remove-GPO -Name $resolvedGpoName -Domain $domain -Server $adServer -ErrorAction Stop; @{ ok = $true } | ConvertTo-Json -Compress`,
         'deleteGPO'
       );
       if (result.ok) return { success: true };
@@ -559,9 +568,9 @@ const adService = {
   async checkGPOExists(gpoName) {
     try {
       const config = require('./config').getConfig();
-      const safe = sanitizePSInput(gpoName).replace(/'/g, "''");
+      const safe = quoteGpoName(gpoName);
       const result = await runPSJson(
-        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; $g = Get-GPO -Name '${safe}' -Domain $domain -Server $adServer -ErrorAction SilentlyContinue; if ($g) { @{ ok = $true; exists = $true } | ConvertTo-Json -Compress } else { @{ ok = $true; exists = $false } | ConvertTo-Json -Compress }`
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; ${gpoNamesSnippet()}; $g = Resolve-DeploymentGpo '${safe}'; if ($g) { @{ ok = $true; exists = $true } | ConvertTo-Json -Compress } else { @{ ok = $true; exists = $false } | ConvertTo-Json -Compress }`
       );
       if (result.ok) return { exists: !!result.exists };
       // Transient failure: signal uncertainty so the caller doesn't assume "not found".
@@ -573,23 +582,25 @@ const adService = {
 
   async unlinkGPOfromOU(gpoName, ouDN) {
     const config = require('./config').getConfig();
-    const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
+    const safeGpo = quoteGpoName(gpoName);
     const safeOU = sanitizeDN(ouDN);
     const result = await runPSJson(
-      `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; Remove-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Domain $domain -Server $adServer -ErrorAction Stop | Out-Null; @{ ok = $true } | ConvertTo-Json -Compress`
+      `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; ${gpoNamesSnippet()}; $resolvedGpoName = Get-DeploymentGpoName '${safeGpo}'; Remove-GPLink -Name $resolvedGpoName -Target '${safeOU}' -Domain $domain -Server $adServer -ErrorAction Stop | Out-Null; @{ ok = $true } | ConvertTo-Json -Compress`
     );
     return normalizeUnlinkResult(result);
   },
 
   async removeGPOStartupScript(gpoName) {
     const config = require('./config').getConfig();
-    const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
+    const safeGpo = quoteGpoName(gpoName);
     return withGPOLock(gpoName, async () => {
       const ps = `
 
         try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }
         ${dcSnippet(config.preferredDC)}
-        $gpo = Get-GPO -Name '${safeGpo}' -Domain $domain -Server $adServer -ErrorAction Stop
+        ${gpoNamesSnippet()}
+        $gpo = Resolve-DeploymentGpo '${safeGpo}'
+        if (-not $gpo) { throw 'NOT_FOUND: GPO' }
         $gpoGuid = "{" + $gpo.Id.ToString() + "}"
         ${gpoScriptHelpers}
         Set-DeploymentStartup $gpoGuid '' $true
@@ -635,18 +646,22 @@ $map | ConvertTo-Json -Compress`
       }
 
       const gpoArrayLiteral = '@(' + managedGpoNames
-        .map(name => `'${sanitizePSInput(name).replace(/'/g, "''")}'`)
+        .map(name => `'${quoteGpoName(name)}'`)
         .join(',') + ')';
       const ouArrayLiteral = toPSSingleQuotedArray(targetOUs);
       const json = await runPowerShell(
         `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)};
 $targetNames = ${gpoArrayLiteral}
-$targetLookup = @{}
-foreach ($name in $targetNames) { $targetLookup[$name.ToLower()] = $true }
+${gpoNamesSnippet()}
 $gpoLookup = @{}
-Get-GPO -All -Domain $domain -Server $adServer -ErrorAction Stop | ForEach-Object {
-  if ($targetLookup.ContainsKey($_.DisplayName.ToLower())) {
-    $gpoLookup[$_.Id.ToString().ToLower()] = $_.DisplayName
+$configuredGpoNames += $targetNames
+$allGpos = @(Get-GPO -All -Domain $domain -Server $adServer -ErrorAction Stop)
+foreach ($name in $targetNames) {
+  $gpo = Resolve-DeploymentGpo $name $allGpos
+  if ($gpo) {
+    $id = $gpo.Id.ToString().ToLower()
+    if ($gpoLookup.ContainsKey($id) -and $gpoLookup[$id] -ine $name) { throw "AMBIGUOUS_GPO_NAME: Multiple configured names resolve to $($gpo.DisplayName)" }
+    $gpoLookup[$id] = $name
   }
 }
 $ouTargets = ${ouArrayLiteral}
@@ -760,6 +775,7 @@ module.exports = {
     isMissingGPOLinkError,
     normalizeUnlinkResult,
     dcSnippet, sanitizeDN, buildOUTree, parseJsonArray, validateScriptPath,
-    setPowerShellRunner(runner) { testPowerShellRunner = runner; }
+    setPowerShellRunner(runner) { testPowerShellRunner = runner; testManagedGpoNames = []; },
+    setManagedGpoNames(names) { testManagedGpoNames = names; }
   }
 };

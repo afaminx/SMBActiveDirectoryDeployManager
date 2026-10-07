@@ -37,8 +37,8 @@ const AppsUpdatesModule = {
       if (!latestVersion) {
         const isMsStore = (r?.wingetSource || app.wingetSource || '').toLowerCase() === 'msstore';
         const msg = isMsStore
-          ? 'MS Store gestiona las actualizaciones automáticamente — versión no disponible via winget'
-          : 'No se pudo verificar la versión más reciente';
+          ? t('gui.msStoreManagesUpdatesAutomaticallyTheVersionIs')
+          : t('gui.couldNotVerifyTheLatestVersion');
         if (statusEl) statusEl.innerHTML = `<span style="color:var(--text-muted);font-size:13px;">${App._esc(msg)}</span>`;
         return;
       }
@@ -56,7 +56,7 @@ const AppsUpdatesModule = {
           </div>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           <div style="text-align:center;">
-            <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Disponible</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">${t('gui.available')}</div>
             <div style="font-weight:700;color:var(--accent-secondary);">v${App._esc(latestVersion)}</div>
           </div>
         </div>`;
@@ -252,7 +252,7 @@ const AppsUpdatesModule = {
         this._bindUpdatesPanelEvents(panel);
       }
     } catch (err) {
-      App.toast(`Error actualizando ${appName}: ${err.message}`, 'error');
+      App.toast(`${t('gui.updateFailedFor')}${appName}: ${err.message}`, 'error');
       if (btnEl) {
         btnEl.disabled = false;
         btnEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.55"/><polyline points="21 4 21 10 15 10"/></svg> ${t('apps.updateToVersion').replace('{version}', AppsPage._updateCheckResults.find(r => r.appId === appId)?.latestVersion || '')}`;

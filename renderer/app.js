@@ -27,6 +27,10 @@ window.initI18n = async function() {
   const config = await window.api.config.get();
   const lang = config.language || 'en';
   window.langDict = await window.api.i18n.getTranslations(lang);
+  document.documentElement.lang = lang === 'es' ? 'es' : 'en';
+  document.querySelectorAll('[data-i18n-title]').forEach(element => {
+    element.title = window.t(element.getAttribute('data-i18n-title'));
+  });
 };
 
 const App = {
@@ -273,7 +277,7 @@ const App = {
   handleShareError() {
     this.shareAvailable = false;
     this.updateShareBanner();
-    this.toast('El share de red no esta disponible. Comprueba la conexion y pulsa Reintentar.', 'error');
+    this.toast(t('gui.theNetworkShareIsUnavailableCheckTheConnection'), 'error');
   },
 
   refreshSettingsUpdateSection() {
@@ -488,21 +492,21 @@ const App = {
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
-        <span>No se puede acceder al share de red. La aplicacion funciona en modo local hasta que se restablezca la conexion.</span>
-        <button id="btn-retry-share" style="margin-left:auto;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;">Reintentar</button>
+        <span>${t('gui.theNetworkShareCannotBeReachedTheApplication')}</span>
+        <button id="btn-retry-share" style="margin-left:auto;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;">${t('gui.retry')}</button>
       `;
       document.body.appendChild(banner);
       document.getElementById('btn-retry-share').addEventListener('click', async () => {
         const btn = document.getElementById('btn-retry-share');
-        if (btn) { btn.disabled = true; btn.textContent = 'Comprobando...'; }
+        if (btn) { btn.disabled = true; btn.textContent = t('gui.checking'); }
         const ok = await this.checkShareHealth();
         if (ok) {
           this.toast('Conexion al share restablecida', 'success');
           // Re-render current page to refresh data
           this.navigate(this.currentPage);
         } else {
-          this.toast('El share sigue sin estar disponible', 'error');
-          if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
+          this.toast(t('gui.theShareIsStillUnavailable'), 'error');
+          if (btn) { btn.disabled = false; btn.textContent = t('gui.retry'); }
         }
       });
     }
@@ -641,7 +645,7 @@ const App = {
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
         <div>
-          <strong style="color:#ef4444;">Share no disponible</strong> — Los datos mostrados pueden estar desactualizados. Las operaciones de despliegue no funcionaran hasta que se restablezca la conexion.
+          <strong style="color:#ef4444;">${t('gui.shareUnavailable')}</strong> — ${t('gui.displayedDataMayBeOutdatedDeploymentOperationsAre')}
         </div>
       </div>`;
   },
