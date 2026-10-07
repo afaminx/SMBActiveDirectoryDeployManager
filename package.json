@@ -15,7 +15,7 @@
     "appId": "dev.andresgp.addeploymanager",
     "productName": "AD Deploy Manager",
     "directories": {
-      "output": "codex/bin/mod-rev-1.4",
+      "output": "codex/bin/mod-rev-1.6",
       "buildResources": "img"
     },
     "compression": "maximum",

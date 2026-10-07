@@ -686,7 +686,7 @@ const appService = {
     if (!adResult.success) {
       return {
         success: false,
-        error: adResult.error || 'Error desconocido',
+        error: adResult.error || 'Unknown error',
         data: apps.map(hydrateAppShareState),
         links: {}
       };
@@ -731,7 +731,7 @@ const appService = {
 
       const adResult = await adService.unlinkGPOfromOU(app.gpoName, ouDN);
       if (!adResult.success) {
-        operationErrors.set(`unassign::${appId}::${ouDN}`, adResult.error || 'Error desconocido');
+        operationErrors.set(`unassign::${appId}::${ouDN}`, adResult.error || 'Unknown error');
       } else {
         app.assignedOUs = (app.assignedOUs || []).filter(dn => dn !== ouDN);
         app.updatedAt = new Date().toISOString();
@@ -751,7 +751,7 @@ const appService = {
 
       const adResult = await adService.linkGPOtoOU(app.gpoName, ouDN);
       if (!adResult.success) {
-        operationErrors.set(`assign::${appId}::${ouDN}`, adResult.error || 'Error desconocido');
+        operationErrors.set(`assign::${appId}::${ouDN}`, adResult.error || 'Unknown error');
       } else {
         const nextOUs = new Set(app.assignedOUs || []);
         nextOUs.add(ouDN);
@@ -814,7 +814,7 @@ const appService = {
         appId,
         ouDN,
         appName: app.name,
-        error: operationErrors.get(`unassign::${appId}::${ouDN}`) || 'La GPO sigue vinculada en AD'
+        error: operationErrors.get(`unassign::${appId}::${ouDN}`) || 'GPO is still linked in AD'
       });
     }
 
@@ -837,7 +837,7 @@ const appService = {
         appId,
         ouDN,
         appName: app.name,
-        error: operationErrors.get(`assign::${appId}::${ouDN}`) || 'La GPO no aparece vinculada en AD'
+        error: operationErrors.get(`assign::${appId}::${ouDN}`) || 'GPO does not appear linked in AD'
       });
     }
 

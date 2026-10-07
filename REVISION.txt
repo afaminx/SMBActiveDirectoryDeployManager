@@ -1,62 +1,86 @@
-Codex revision: mod-rev-1.4
+Codex revision: mod-rev-1.6
 Upstream application version: 1.2.11 (unchanged)
-Based on Codex revision: mod-rev-1.3 (successful clean source/build)
+Based on Codex revision: mod-rev-1.5
 Date: 2026-10-07
-Build status: SUCCESS - Windows x64 unpacked application and portable executable; clean GitHub publishing tree updated separately.
+Build status: SUCCESS - Windows x64 unpacked and portable executable.
 
-Files changed from mod-rev-1.3:
-README.md
+Files changed:
 build-portable.cjs
 package.json
-services/update-service.js
-tests/update-service.test.js
-tests/build-layout.test.js
-REVISION.txt rewritten for this revision.
-Removed source file: FORK-PUBLISHING.md.
-Workspace tooling changed/added: codex/AGENTS.md and codex/toolchain/sync-gitpub.cjs. These are internal workflow files and are not part of the GitHub source.
+README.md
+renderer\pages\apps-actions.js
+renderer\pages\apps-template.js
+renderer\pages\apps-wizard.js
+renderer\pages\bundles.js
+renderer\pages\gpos.js
+renderer\pages\ou-tree.js
+renderer\pages\settings.js
+renderer\pages\setup.js
+tests\build-layout.test.js
+REVISION.txt
+
+Combined source files changed from mod-rev-1.4:
+build-portable.cjs
+main.js
+package.json
+README.md
+renderer\pages\apps-actions.js
+renderer\pages\apps-template.js
+renderer\pages\apps-wizard.js
+renderer\pages\bundles.js
+renderer\pages\dashboard.js
+renderer\pages\gpos.js
+renderer\pages\logs.js
+renderer\pages\ou-tree.js
+renderer\pages\settings.js
+renderer\pages\setup.js
+REVISION.txt
+services\ad-service.js
+services\app-service.js
+services\file-service.js
+services\log-sink\remote-sink.js
+services\script-service.js
+services\share-health.js
+tests\ADMIN-VALIDATION.txt
+tests\build-layout.test.js
+tests\log-language.test.js
+tests\script-path.test.js
+tests\script-service.test.js
 
 Changes made:
-README rewritten for afaminx/SMBActiveDirectoryDeployManager: repository/title, clone/download/issue links, Samba LDAP/GroupPolicy architecture, actual prerequisites, working pnpm commands, current output paths, local versus real-domain validation and preserved upstream attribution/license. Publishing-only documentation removed from source and kept in executable-package UPLOAD.txt. Clean repository now lives at codex/gitpub/SMBActiveDirectoryDeployManager/, with no revision subfolders and no source archives/repository copies under pkg/. A managed-file synchronization helper keeps the mutable publishing tree current while preserving Git metadata and unrelated user files; standing workflow instructions require it after future successful changes/builds. Build defaults updated to 1.4 and recognize the gitpub layout without putting binary output inside the publishing tree. The existing fork checkout retains its .git history and remotes; duplicate flat files created during preparation were removed. Update service now queries/releases-links to afaminx/SMBActiveDirectoryDeployManager, with a regression test exercising the actual mocked HTTPS request.
+Inherited tested hidden-share and English diagnostics fix from successful revision 1.5. Completed the renderer language scan: translated remaining hard-coded uninstall/bundle, GPO-delete, OU fallback, configuration import/export, enrollment and template status errors/fallbacks. Existing selected-language dictionaries remain available. Build outputs retain a new revision; the completed 1.5 package is preserved.
+
+Combined fix from revision 1.4:
+Corrected hidden/administrative SMB share rejection: $ and legitimate filename characters are accepted and preserved through the createGPO single-quoted PowerShell literal. Invalid Windows characters, device/relative paths, non-executable extensions, traversal outside and sibling-prefix paths remain rejected. Absolute path handling uses Windows semantics. Translated AD/file/share errors, application/server log messages, activity displays, template errors, generated install/uninstall diagnostics into English. Retained configured-language translations and locale error matching. Added path/PowerShell AST, log escaping/language, generated script syntax tests.
 
 ADWS-dependent code found:
-No new ADWS-dependent production calls. Original upstream services/ad-service.js used Get-ADDomain for DC/domain discovery, Get-ADOrganizationalUnit for OU/scoped OU/gPLink reads, Get-ADObject for GPO LDAP attributes, Set-ADObject for extension/version writes, and ActiveDirectory module imports/readiness checks across shared AD/GPO operations. Shared discovery also affected checkGPOExists. Settings originally tested the connection through OU enumeration. These were replaced in the earlier source and remain replaced here.
+No new production dependency. Historical upstream Get-ADDomain, Get-ADOrganizationalUnit, Get-ADObject, Set-ADObject and ActiveDirectory imports were replaced in earlier revisions.
 
 ADWS-dependent code replaced:
-No AD/GPO runtime change in this revision. Shared DirectoryEntry/DirectorySearcher LDAP handles RootDSE/defaultNamingContext/domain, paged Subtree OU enumeration with configured bases, gPLink and GPO attribute read/write/clear using current Windows credentials. Explicit DC bypasses native domain/PDC fallback. GroupPolicy GPO operations retain explicit Domain/Server. Startup ownership, unrelated script/CSE preservation, consistent computer/user policy version handling and reported write rollback remain intact.
+Earlier System.DirectoryServices RootDSE/domain/OU/gPLink/GPO LDAP access remains. Current credentials and explicit DC remain; native discovery fallback remains. GroupPolicy GPO management is preserved.
 
 Remaining ActiveDirectory/ADWS references:
-services/ldap-snippets.js: System.DirectoryServices.ActiveDirectory.Domain is a native .NET directory discovery API, not Microsoft.ActiveDirectory.Management or ADWS.
-services/update-service.js: SMBActiveDirectoryDeployManager is the public fork repository name, safe metadata.
-README.md: upstream attribution link, explanation of removed ActiveDirectory/ADWS dependency and Get-ADDomain failure, safe documentation.
-tests/ADMIN-VALIDATION.txt: independent Get-ADDomain failure and ADWS independence in manual instructions, safe documentation.
-tests/ldap-compatibility.test.js and tests/verify-artifacts.cjs: audit regexes rejecting forbidden imports/cmdlets, safe test code.
-REVISION.txt: historical call audit, safe documentation. No production Get-AD*, Set-AD*, New-AD*, Remove-AD*, Import-Module ActiveDirectory or ActiveDirectory.Management dependency remains. GroupPolicy usage is preserved.
+Native System.DirectoryServices.ActiveDirectory discovery and explanatory/test audit references only. No runtime ADWS module/cmdlet requirement.
 
 Local tests performed:
-Full frozen-lockfile install/test/build in an isolated source copy outside clean source and gitpub. PowerShell generation/parser checks; LDAP response, ownership/CSE/INI/version and file-rollback fixtures; mocked HTTPS fork endpoint regression; application/source syntax checks; package source comparison and packaged Electron smoke test; publishing-tree content/privacy/inventory checks, synchronization default selection and protected SHA256/inventory checks.
+Isolated cached frozen-lockfile install; 111 tests in 14 suites passed. Actual Windows PowerShell parser verified 16 AD operation scripts, a hidden-share literal assignment and eight install/uninstall scripts. Existing ownership/CSE/INI/version/rollback fixtures passed. All 84 JavaScript files passed syntax checks. Build succeeded with Electron 33.4.11. Package source, checksums and protected original/older inventory verification performed separately. No live domain mutations performed.
 
 Local tests passed:
-85 tests in 12 suites, including revision/standalone/existing-checkout build layouts and output-overwrite protection. All generated operation PowerShell and diagnostic syntax checks passed. JavaScript syntax checks passed. 110 pre-report source files matched the staging copy before packaging. 56 packaged code files matched source; zero runtime ADWS calls. Packaged Electron loaded the LDAP service and verified the fork update endpoint. The clean publishing tree matches the final source file-for-file without dependencies, caches, generated test output, private audit paths or publishing-only documents. All 18,792 protected original/older-revision files and inventories remain unchanged. Binary ZIP and release checksums verified.
+111/111; all syntax/fixture checks above. 113 pre-report canonical files matched the tested staging copy. All 56 packaged code files matched source; no runtime ADWS calls. Packaged Electron successfully loaded the AD service and validated a hidden-share path unchanged. Publishing source/inventory/privacy, binary ZIP/checksum and 19,080 protected original/older-revision file checks passed.
 
 Tests not possible on development machine:
-Actual Samba/Microsoft AD LDAP bind/search/write and native joined-domain discovery; real GroupPolicy/GPMC, SYSVOL mutation and Windows 11 startup policy execution. No RSAT or production domain access assumed or installed. Real-domain integration is unverified.
+Real LDAP/GroupPolicy/SYSVOL, GPMC and Windows 11 startup execution. No RSAT installed or domain access assumed.
 
 Manual tests required on administration workstation:
-Follow tests/ADMIN-VALIDATION.txt: LDAP connection despite independently failing Get-ADDomain, GPO list/OU scopes/links, dedicated test GPO create/link/startup/remove, unrelated CSE/scripts preservation, matching AD/GPT versions, GPMC readability, gpupdate /force and client reboot/startup execution, safe unlink/delete and native fallback. Use dedicated test objects, not production policy mutations.
-Read-only diagnostic (replace example hostname):
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .	estsdiagnose-samba-ad.ps1 -Server dc.example.test
-Optionally pass -BaseOU and -GpoGuid for your test OU/GPO.
-Verify the Updates button leads to the fork's release page; if the repository has no public release, the existing update error handling reports the API response rather than offering upstream releases. No real GitHub update request is used in local tests.
+Follow tests/ADMIN-VALIDATION.txt: dedicated test OU/GPO, configured DC and LDAP health despite failing Get-ADDomain, OU/GPO list, hidden-share deployment, exact $ preserved in scripts.ini, matching policy versions, GPMC links/startup entry, gpupdate /force then reboot, client read access to the hidden share, unrelated script/CSE preservation and safe unlink/delete. Verify new activity/error diagnostics are English.
 
 Known issues:
-Unsigned executable, default Electron icon. Integration testing pending. Legacy startup scripts without ownership metadata require manual review before automatic removal. External GPMC changes are not locked; LDAP/SMB rollback is best effort. The existing update comparator compares semantic application versions, not modification-revision suffixes; source version remains 1.2.11 and revision remains 1.4. No GitHub publication has been performed.
+Unsigned executable/default icon. Real-domain integration pending. System tools/user scripts and historical persisted messages retain their own language. Legacy script ownership requires review; LDAP/SMB rollback is best effort; no concurrent GPMC locking. Application update comparator uses 1.2.11 semantic version, not modification suffixes.
 
 Notes:
-Immutable source: ./codex/src/mod-rev-1.4/
-Binary output: ./codex/bin/mod-rev-1.4/win-unpacked/
-Binary ZIP: ./codex/bin/mod-rev-1.4/ADDeployManager-mod-rev-1.4-win-x64.zip
-Portable package: ./codex/pkg/mod-rev-1.4/ADDeployManager-Portable.exe
-Mutable GitHub repository root: ./codex/gitpub/SMBActiveDirectoryDeployManager/
-Fork: https://github.com/afaminx/SMBActiveDirectoryDeployManager
-Publishing instructions: ./codex/pkg/mod-rev-1.4/UPLOAD.txt
-No revision subfolders in gitpub; no source archive/repository copy in pkg. Original src/bin/pkg and revisions 1.0/1.1/1.2/1.3 preserved. All work stays under codex. Private preservation records and build dependencies stay under toolchain. Future builds must use a new revision (next 1.5) and update the same clean gitpub tree after successful verification.
+Source: ./codex/src/mod-rev-1.6/
+Binary: ./codex/bin/mod-rev-1.6/win-unpacked/
+Binary ZIP: ./codex/bin/mod-rev-1.6/ADDeployManager-mod-rev-1.6-win-x64.zip
+Portable: ./codex/pkg/mod-rev-1.6/ADDeployManager-Portable.exe
+Publishing checkout: ./codex/gitpub/SMBActiveDirectoryDeployManager/ (latest complete source only; preserve Git history/remotes).
+No source export in pkg. Publishing instructions belong in package UPLOAD.txt. Original references and older revisions remain immutable. No GitHub push performed.

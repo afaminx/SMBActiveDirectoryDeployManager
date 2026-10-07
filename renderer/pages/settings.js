@@ -445,7 +445,7 @@ const SettingsPage = {
     // Auto-provision an ingest key so this workstation can ship logs.
     const prov = await window.api.admin.provisionIngestKey();
     if (!prov.success) {
-      App.toast(`${t('settings.ingestProvisionFailed') || 'No se pudo provisionar la clave de ingesta'}: ${prov.error}`, 'warning');
+      App.toast(`${t('settings.ingestProvisionFailed') || 'Could not provision the ingest key'}: ${prov.error}`, 'warning');
     } else {
       App.toast(t('settings.ingestProvisioned') || 'Clave de ingesta creada', 'success');
     }
@@ -555,7 +555,7 @@ const SettingsPage = {
         'success'
       );
     } catch (err) {
-      App.toast(`${t('settings.regeneratePublishedScriptsError') || 'No se pudieron regenerar los scripts'}: ${err.message}`, 'error');
+      App.toast(`${t('settings.regeneratePublishedScriptsError') || 'Could not regenerate scripts'}: ${err.message}`, 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -826,10 +826,10 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
         const result = await window.api.saveFile(json, `deploy_manager_backup_${new Date().toISOString().slice(0,10)}.json`);
         if (result.success) {
           await window.api.activity.add('config_export', {});
-          App.toast('Configuración exportada correctamente', 'success');
+          App.toast('Configuration exported successfully', 'success');
         }
       } catch (err) {
-        App.toast('Error al exportar: ' + err.message, 'error');
+        App.toast('Export failed: ' + err.message, 'error');
       }
     });
 
@@ -840,14 +840,14 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
           const importResult = await window.api.importAll(result.data);
           if (importResult.success) {
             await window.api.activity.add('config_import', {});
-            App.toast('Configuración importada correctamente. Recargando...', 'success');
+            App.toast('Configuration imported successfully. Reloading...', 'success');
             setTimeout(() => App.navigate('settings'), 500);
           } else {
-            App.toast('Error al importar: ' + importResult.error, 'error');
+            App.toast('Import failed: ' + importResult.error, 'error');
           }
         }
       } catch (err) {
-        App.toast('Error al importar: ' + err.message, 'error');
+        App.toast('Import failed: ' + err.message, 'error');
       }
     });
   },

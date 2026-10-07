@@ -8,7 +8,7 @@ Repository: [afaminx/SMBActiveDirectoryDeployManager](https://github.com/afaminx
 
 Based on [ActiveDirectoryDeployManager by gpandres](https://github.com/gpandres/ActiveDirectoryDeployManager).
 The application version is **1.2.11**. The current modification revision is
-**mod-rev-1.4**; these are separate version numbers.
+**mod-rev-1.6**; these are separate version numbers.
 
 ![Application screenshot](img/screenshot.png)
 
@@ -29,6 +29,10 @@ module and TCP port 9389.
   failures are reported and rollback is attempted.
 - Settings tests LDAP connectivity separately from OU enumeration. Readiness
   checks use LDAP and GroupPolicy availability.
+- Hidden SMB shares ending in `$` are supported for deployment scripts. Paths
+  stay within the configured trusted roots and are preserved as literal strings.
+- Application errors, activity messages and generated deployment diagnostics
+  use English. System tools and user-provided scripts may return their own text.
 
 The implementation is intended for both Samba AD and Microsoft AD. Local tests
 and package checks pass; real-domain GPMC and Windows 11 integration testing is
@@ -103,8 +107,8 @@ Build the portable release:
 pnpm run build
 ```
 
-The build creates `codex/bin/mod-rev-1.4/win-unpacked/` and
-`codex/pkg/mod-rev-1.4/ADDeployManager-Portable.exe` in a standalone checkout.
+The build creates `codex/bin/mod-rev-1.6/win-unpacked/` and
+`codex/pkg/mod-rev-1.6/ADDeployManager-Portable.exe` in a standalone checkout.
 `pnpm run build:dir` creates the unpacked application only. Existing revision
 outputs are never overwritten. Select a new `ADDM_REVISION` for another build
 and preserve matching source and revision notes; in the revision-directory

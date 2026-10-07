@@ -62,25 +62,31 @@ function toPSSingleQuotedArray(values) {
   return '@(' + values.map(v => `'${sanitizeDN(v)}'`).join(',') + ')';
 }
 
-// ─── scriptPath validation: block remote/out-of-scope paths ──────────────────
+// ─── scriptPath validation: restrict startup scripts to trusted roots ────────
 
 // Returns a normalized absolute path or throws. Rejects any path not residing
 // under one of the configured trusted roots (networkSharePath, logDirectory).
 function validateScriptPath(scriptPath, config) {
   if (typeof scriptPath !== 'string' || !scriptPath.trim()) {
-    throw new Error('scriptPath requerido');
+    throw new Error('Script path is required');
   }
   const raw = scriptPath.trim();
 
-  // Reject control characters and obvious PS/shell metacharacters outright.
-  // A legitimate Windows/UNC path never contains these.
-  if (/[`$;|&{}<>"\0\r\n]/.test(raw)) {
-    throw new Error('scriptPath contiene caracteres no permitidos');
+  // Validate Windows file names, not shell syntax. Administrative/hidden shares
+  // legitimately contain $, and names may contain &, ;, braces or apostrophes.
+  // The path is embedded in a single-quoted PowerShell literal below.
+  const windowsPath = path.win32;
+  if (/[\x00-\x1f<>"|?*]/.test(raw) || /[:]/.test(raw.slice(windowsPath.parse(raw).root.length))) {
+    throw new Error('Script path contains invalid Windows path characters');
+  }
+  if (!windowsPath.isAbsolute(raw) || /^(?:\\\\[?.]\\|\\(?!\\))/.test(raw)
+      || (!/^[a-z]:[\\/]/i.test(raw) && !/^\\\\[^\\/]+\\[^\\/]+(?:\\|$)/.test(raw))) {
+    throw new Error('Script path must be an absolute drive or UNC file path');
   }
 
   // Must have a .ps1, .bat, .cmd or .exe extension — not arbitrary file types.
   if (!/\.(ps1|bat|cmd|exe)$/i.test(raw)) {
-    throw new Error('scriptPath debe apuntar a un script ejecutable (.ps1/.bat/.cmd/.exe)');
+    throw new Error('Script path must point to an executable script (.ps1/.bat/.cmd/.exe)');
   }
 
   // Normalize to strip any trailing separator. path.resolve preserves (or adds)
@@ -90,24 +96,26 @@ function validateScriptPath(scriptPath, config) {
 
   const roots = [config.networkSharePath, config.logDirectory]
     .filter(r => typeof r === 'string' && r.trim())
-    .map(r => stripTrailingSep(path.resolve(r)).toLowerCase());
+    .filter(r => windowsPath.isAbsolute(r))
+    .map(r => stripTrailingSep(windowsPath.resolve(r)).toLowerCase());
 
   if (roots.length === 0) {
-    throw new Error('No hay rutas confiables configuradas (networkSharePath/logDirectory)');
+    throw new Error('No trusted paths are configured (networkSharePath/logDirectory)');
   }
 
-  const resolved = stripTrailingSep(path.resolve(raw)).toLowerCase();
+  const normalized = windowsPath.normalize(raw);
+  const resolved = stripTrailingSep(windowsPath.resolve(normalized)).toLowerCase();
 
   // Strict prefix match with separator to avoid "C:\shareevil" matching "C:\share".
   const isUnder = roots.some(root => {
-    return resolved === root || resolved.startsWith(root + path.sep);
+    return resolved === root || resolved.startsWith(root + windowsPath.sep);
   });
 
   if (!isUnder) {
-    throw new Error('scriptPath está fuera de las rutas confiables permitidas');
+    throw new Error('Script path is outside the configured trusted paths');
   }
 
-  return raw;
+  return normalized;
 }
 
 // ─── PowerShell execution ────────────────────────────────────────────────────
@@ -155,7 +163,7 @@ function runPowerShell(command, { timeoutMs = DEFAULT_PS_TIMEOUT_MS, label = '' 
         const elapsed = Date.now() - t0;
         if (killed) {
           _logPS('ps_timeout', 'error', `PowerShell timeout${tag}: ${timeoutMs}ms`, elapsed);
-          return reject(new Error(`PowerShell timeout tras ${timeoutMs}ms`));
+          return reject(new Error(`PowerShell timed out after ${timeoutMs}ms`));
         }
         if (error) {
           const msg = (stderr || error.message || '').slice(0, 400);
@@ -269,9 +277,9 @@ function isMissingGPOLinkError(message) {
 function normalizeUnlinkResult(result) {
   if (result?.ok) return { success: true };
   if (result?.code === 'NOT_LINKED' || result?.code === 'NOT_FOUND' || isMissingGPOLinkError(result?.error)) {
-    return { success: true, message: 'GPO no estaba vinculada a esa OU' };
+    return { success: true, message: 'GPO was not linked to that OU' };
   }
-  return { success: false, error: result?.error || 'Error desconocido' };
+  return { success: false, error: result?.error || 'Unknown error' };
 }
 
 async function runPSJson(command, label = '') {
@@ -294,11 +302,11 @@ const adService = {
         ldapAvailable: ldap.success,
         ...(ldap.code ? { code: ldap.code } : {}),
         message: !ldap.success ? ldap.error : result === 'OK'
-          ? 'LDAP y módulo GroupPolicy disponibles'
-          : 'LDAP disponible. Instala: Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0'
+          ? 'LDAP and GroupPolicy module are available'
+          : 'LDAP is available. Install: Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0'
       };
     } catch (err) {
-      return { available: false, message: `Error al comprobar RSAT: ${err.message}` };
+      return { available: false, message: `Failed to check Group Policy tools: ${err.message}` };
     }
   },
 
@@ -391,10 +399,10 @@ const adService = {
     const result = await runPSJson(script);
     if (result.ok) {
       return result.code === 'REACTIVATED'
-        ? { success: true, message: 'GPO ya estaba vinculada y se ha reactivado el enlace' }
+        ? { success: true, message: 'GPO was already linked; the link has been enabled' }
         : { success: true };
     }
-    return { success: false, error: result.error || 'Error desconocido' };
+    return { success: false, error: result.error || 'Unknown error' };
   },
 
   async bulkLinkGPO(gpoName, ouDNs) {
@@ -435,7 +443,7 @@ const adService = {
       return arr.map(r => ({
         ouDN: r.ouDN,
         success: !!r.ok,
-        ...(r.code ? { message: 'GPO ya estaba vinculada y se ha reactivado el enlace' } : {}),
+        ...(r.code ? { message: 'GPO was already linked; the link has been enabled' } : {}),
         ...(r.error ? { error: r.error } : {})
       }));
     } catch (err) {
@@ -457,7 +465,7 @@ const adService = {
     }
 
     const safeGpoName = sanitizePSInput(gpoName).replace(/'/g, "''");
-    const safeScriptPath = validatedPath.replace(/[`$;|&{}<>"\0]/g, '').replace(/'/g, "''");
+    const safeScriptPath = validatedPath.replace(/'/g, "''");
     const normalizedOUs = normalizeDNArray(ouDN);
     const ouTargetsArray = toPSSingleQuotedArray(normalizedOUs);
 
@@ -530,7 +538,7 @@ const adService = {
           ...(failed.length ? { partial: true, failedLinks: failed.length } : {})
         };
       }
-      return { success: false, error: result.error || 'Error desconocido', code: result.code };
+      return { success: false, error: result.error || 'Unknown error', code: result.code };
     });
   },
 
@@ -544,7 +552,7 @@ const adService = {
       );
       if (result.ok) return { success: true };
       if (result.code === 'NOT_FOUND') return { success: true };
-      return { success: false, error: result.error || 'Error desconocido' };
+      return { success: false, error: result.error || 'Unknown error' };
     });
   },
 
@@ -557,7 +565,7 @@ const adService = {
       );
       if (result.ok) return { exists: !!result.exists };
       // Transient failure: signal uncertainty so the caller doesn't assume "not found".
-      return { exists: false, error: result.error || 'Error desconocido' };
+      return { exists: false, error: result.error || 'Unknown error' };
     } catch (err) {
       return { exists: false, error: err.message };
     }
@@ -590,7 +598,7 @@ const adService = {
       `;
       const result = await runPSJson(ps);
       if (result.ok) return { success: true };
-      return { success: false, error: result.error || 'Error desconocido' };
+      return { success: false, error: result.error || 'Unknown error' };
     });
   },
 
@@ -751,7 +759,7 @@ module.exports = {
   __test__: {
     isMissingGPOLinkError,
     normalizeUnlinkResult,
-    dcSnippet, sanitizeDN, buildOUTree, parseJsonArray,
+    dcSnippet, sanitizeDN, buildOUTree, parseJsonArray, validateScriptPath,
     setPowerShellRunner(runner) { testPowerShellRunner = runner; }
   }
 };

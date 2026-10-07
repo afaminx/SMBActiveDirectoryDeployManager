@@ -273,7 +273,7 @@ const SetupPage = {
         const res = await window.api.share.enrollFromConfig();
         if (!res?.success) {
           App.toast(
-            `${t('setup.enrollFailed') || 'No se pudo enrolar el equipo'}: ${res?.error || 'unknown'}`,
+            `${t('setup.enrollFailed') || 'Could not enroll the computer'}: ${res?.error || 'unknown'}`,
             'error'
           );
           return;
@@ -287,12 +287,12 @@ const SetupPage = {
           tlsFingerprint: dedTlsFp || null
         });
         if (!r.success) {
-          App.toast(`${t('setup.adminLoginFailed') || 'Login admin fallido'}: ${r.error}`, 'warning');
+          App.toast(`${t('setup.adminLoginFailed') || 'Admin login failed'}: ${r.error}`, 'warning');
         } else {
           const provision = await window.api.admin.provisionIngestKey();
           if (!provision.success) {
             App.toast(
-              `${t('settings.ingestProvisionFailed') || 'No se pudo provisionar la clave de ingesta'}: ${provision.error}`,
+              `${t('settings.ingestProvisionFailed') || 'Could not provision the ingest key'}: ${provision.error}`,
               'warning'
             );
           } else {

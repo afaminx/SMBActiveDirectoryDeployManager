@@ -468,7 +468,7 @@ const AppsActionsModule = {
       const result = await window.api.scripts.regenerate(app);
       if (!result?.success) {
         if (App.isShareError(result?.error)) { App.handleShareError(); return; }
-        throw new Error(result?.error || t('apps.regenerateScriptsError', 'No se pudieron regenerar los scripts.'));
+        throw new Error(result?.error || t('apps.regenerateScriptsError', 'Could not regenerate scripts.'));
       }
 
       const nextPublishedAction = String(result.publishedAction || app.publishedAction || '').trim().toLowerCase() === 'uninstall'
@@ -490,7 +490,7 @@ const AppsActionsModule = {
       AppsListModule.setPendingFocus(id);
       App.navigate('apps');
     } catch (err) {
-      App.toast(`${t('apps.regenerateScriptsError', 'No se pudieron regenerar los scripts.')}: ${err.message}`, 'error');
+      App.toast(`${t('apps.regenerateScriptsError', 'Could not regenerate scripts.')}: ${err.message}`, 'error');
     } finally {
       AppsPage._regeneratingScriptIds.delete(id);
     }
@@ -538,7 +538,7 @@ const AppsActionsModule = {
         const deployResult = await window.api.scripts.deployUninstall(app);
         if (!deployResult.success) {
           if (App.isShareError(deployResult.error)) { App.handleShareError(); return; }
-          throw new Error(deployResult.error || 'No se pudo preparar uninstall.ps1');
+          throw new Error(deployResult.error || 'Could not prepare uninstall.ps1');
         }
 
         const uninstallPath = deployResult.uninstallPath || deployResult.path || '';
@@ -551,11 +551,11 @@ const AppsActionsModule = {
         const switchGPO = document.getElementById('chk-switch-uninstall-gpo')?.checked ?? false;
         if (hasGPO && switchGPO && uninstallPath) {
           if (!App.rsatAvailable) {
-            App.toast(t('apps.uninstallGpoSkipped', 'La GPO no se pudo actualizar porque RSAT/GPMC no está disponible.'), 'warning');
+            App.toast(t('apps.uninstallGpoSkipped', 'Could not update the GPO because Group Policy tools are unavailable.'), 'warning');
           } else {
             const gpoResult = await window.api.ad.createGPO(app.gpoName, uninstallPath, targetOUs);
             if (!gpoResult.success) {
-              App.toast(`${t('apps.uninstallGpoWarn', 'El script uninstall se generó, pero no se pudo reapuntar la GPO.')}: ${gpoResult.error}`, 'warning');
+              App.toast(`${t('apps.uninstallGpoWarn', 'Uninstall script generated, but the GPO could not be updated.')}: ${gpoResult.error}`, 'warning');
             }
           }
         }

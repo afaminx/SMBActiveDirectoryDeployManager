@@ -31,6 +31,13 @@ MANUAL FUNCTIONAL TESTS (explicitly invoke each operation yourself)
 4. Use the normal deployment wizard and your existing SMB repository to create
    a harmless test deployment, dedicated GPO and link to the test OU. Record
    the GPO name/GUID. The referenced deployment script stays on the repository.
+   Include a hidden share, such as \\server.example.test\ClientDeployment$\Software.
+   Confirm there is no INVALID_SCRIPT_PATH rejection and the $ remains in the
+   Startup script parameters. Where used, also test a folder with an apostrophe
+   or ampersand. The test computer account must have read access to this share.
+   Check new Logs and Recent Activity entries: App created, Script deployed and
+   validation failures must use English. Historical stored messages are retained;
+   errors produced by system tools or custom scripts may use their own locale.
 5. Run diagnostics with -GpoGuid. Verify scripts.ini contains powershell.exe and
    the repository script path; the Scripts computer CSE/tool GUIDs are present.
    Confirm gpt.ini Version and LDAP versionNumber describe the same 32-bit value

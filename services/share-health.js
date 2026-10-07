@@ -32,7 +32,7 @@ async function check() {
   try {
     await Promise.race([
       fs.promises.access(sharePath, fs.constants.R_OK),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout: el share no respondió en 3 s')), CHECK_TIMEOUT_MS))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout: the network share did not respond within 3 seconds')), CHECK_TIMEOUT_MS))
     ]);
     _status = { available: true, lastChecked: Date.now(), path: sharePath, error: '' };
   } catch (err) {
