@@ -403,7 +403,7 @@ const AppsTemplateModule = {
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
           <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">${t('apps.customTemplateFieldLabel', 'Etiqueta')}</label>
-            <input class="form-input" data-field="label" value="${App._esc(arg.label)}" placeholder="Valor de configuración">
+            <input class="form-input" data-field="label" value="${App._esc(arg.label)}" placeholder="${t('gui.configurationValue')}">
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">${t('apps.customTemplateArgLabel', 'Argumento')}</label>
@@ -445,7 +445,7 @@ const AppsTemplateModule = {
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
           <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">${t('apps.customTemplateFieldLabel', 'Etiqueta')}</label>
-            <input class="form-input" data-field="label" value="${App._esc(file.label)}" placeholder="${App._esc(AppUtils.isInstallerTemplateFile(file) ? 'Instalador adicional' : 'Archivo de configuración')}">
+            <input class="form-input" data-field="label" value="${App._esc(file.label)}" placeholder="${App._esc(AppUtils.isInstallerTemplateFile(file) ? t('gui.additionalInstaller') : t('gui.configurationFile'))}">
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">${t('apps.customTemplateExtensions', 'Extensiones')}</label>
@@ -513,15 +513,15 @@ const AppsTemplateModule = {
     // Shared installer config panel
     const installerPanel = `
       <div class="card template-builder-section" style="border-color:rgba(30,144,255,0.25);background:rgba(30,144,255,0.04);">
-        <div style="font-weight:700;color:var(--text-primary);margin-bottom:6px;">Instalador preconfigurado</div>
-        <p class="form-hint" style="margin:0 0 10px 0;">Si adjuntas el instalador aquí, se completará automáticamente cada vez que alguien cree una app con esta plantilla.</p>
+        <div style="font-weight:700;color:var(--text-primary);margin-bottom:6px;">${t('gui.preconfiguredInstaller')}</div>
+        <p class="form-hint" style="margin:0 0 10px 0;">${t('gui.attachAnInstallerHereToSelectItAutomatically')}</p>
         ${currentInstallerPath ? `<div style="display:inline-flex;align-items:center;gap:6px;${installerBadgeTone}border-radius:6px;padding:4px 10px;margin-bottom:10px;font-size:12px;max-width:100%;overflow:hidden;">
           <span style="flex-shrink:0;">${hasPendingInstaller ? '&#8599;' : '&#10003;'}</span>
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;" title="${App._esc(currentInstallerPath)}">${App._esc(installerFileName)}</span>
         </div>` : ''}
         <div style="display:flex;gap:8px;align-items:center;">
-          <input class="form-input" id="tmpl-installer-path" value="${App._esc(currentInstallerPath)}" placeholder="Sin instalador preconfigurado" readonly style="flex:1;font-family:monospace;font-size:12px;">
-          <button class="btn btn-secondary btn-sm" type="button" id="btn-browse-tmpl-installer" ${isSavingTemplate ? 'disabled' : ''}>Seleccionar</button>
+          <input class="form-input" id="tmpl-installer-path" value="${App._esc(currentInstallerPath)}" placeholder="${t('gui.noPreconfiguredInstaller')}" readonly style="flex:1;font-family:monospace;font-size:12px;">
+          <button class="btn btn-secondary btn-sm" type="button" id="btn-browse-tmpl-installer" ${isSavingTemplate ? 'disabled' : ''}>${t('gui.select2')}</button>
           ${currentInstallerPath ? `<button class="btn btn-ghost btn-sm" type="button" id="btn-clear-tmpl-installer" ${isSavingTemplate ? 'disabled' : ''}>&times;</button>` : ''}
         </div>
         <div id="tmpl-installer-status" style="display:${installerStatus ? 'block' : 'none'};margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;${installerStatusTone}">${installerStatus ? App._esc(installerStatus.message) : ''}</div>
@@ -535,7 +535,7 @@ const AppsTemplateModule = {
         <div>
           <div style="font-size:16px;font-weight:700;color:var(--text-primary);">${App._esc(selectedBuiltInInfo.name)}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${App._esc(selectedBuiltInInfo.description || '')}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;opacity:.7;">Plantilla del sistema - Solo lectura</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;opacity:.7;">${t('gui.systemTemplateReadOnly')}</div>
         </div>
       </div>
       ${installerPanel}
@@ -563,7 +563,7 @@ const AppsTemplateModule = {
           ${deletePanel}
           <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">${t('apps.customTemplateName', 'Nombre de la plantilla')}</label>
-            <input class="form-input" id="tmpl-name" value="${App._esc(draft.name)}" placeholder="Plantilla personalizada">
+            <input class="form-input" id="tmpl-name" value="${App._esc(draft.name)}" placeholder="${t('gui.customTemplate')}">
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">${t('apps.customTemplateDescription', 'Descripción')}</label>
@@ -600,8 +600,8 @@ const AppsTemplateModule = {
       <button class="btn btn-secondary" type="button" id="btn-close-template-manager" ${isSavingTemplate ? 'disabled' : ''}>${t('common.close', 'Cerrar')}</button>
       <div style="flex:1"></div>
       ${!state.selectedBuiltIn && state.selectedId ? `<button class="btn btn-danger" type="button" id="btn-delete-template" ${isSavingTemplate ? 'disabled' : ''}>${t('common.delete', 'Borrar')}</button>` : ''}
-      ${!state.selectedBuiltIn ? `<button class="btn btn-success" type="button" id="btn-save-template" ${isSavingTemplate ? 'disabled' : ''}>${isSavingTemplate ? 'Guardando...' : t('common.save', 'Guardar')}</button>` : ''}
-      ${state.selectedBuiltIn ? `<button class="btn ${state.installerSaved ? 'btn-secondary' : 'btn-success'}" type="button" id="btn-save-tmpl-installer" ${isSavingTemplate ? 'disabled' : ''}>${isSavingTemplate ? 'Guardando...' : (state.installerSaved ? t('common.close', 'Cerrar') : 'Guardar instalador')}</button>` : ''}
+      ${!state.selectedBuiltIn ? `<button class="btn btn-success" type="button" id="btn-save-template" ${isSavingTemplate ? 'disabled' : ''}>${isSavingTemplate ? t('gui.saving') : t('common.save', 'Guardar')}</button>` : ''}
+      ${state.selectedBuiltIn ? `<button class="btn ${state.installerSaved ? 'btn-secondary' : 'btn-success'}" type="button" id="btn-save-tmpl-installer" ${isSavingTemplate ? 'disabled' : ''}>${isSavingTemplate ? t('gui.saving') : (state.installerSaved ? t('common.close', 'Cerrar') : t('gui.saveInstaller'))}</button>` : ''}
     `;
 
     App.openModal(t('apps.manageTemplates', 'Plantillas'), body, footer, { size: 'full' });
@@ -676,15 +676,15 @@ const AppsTemplateModule = {
     // Browse installer button (for both built-in and user templates)
     document.getElementById('btn-browse-tmpl-installer')?.addEventListener('click', async () => {
       if (state.isSavingTemplate) return;
-      const file = await window.api.config.selectFile([{ name: 'Instalador (EXE/MSI)', extensions: ['exe', 'msi'] }]);
+      const file = await window.api.config.selectFile([{ name: t('gui.installerExeMsi'), extensions: ['exe', 'msi'] }]);
       if (!file) return;
       state.installerSaved = false; // new file selected â€” re-enable save button
       this.setPendingTemplateInstallerPath(state, file);
       state.installerStatus = {
         type: 'info',
         message: state.selectedBuiltIn
-          ? 'Instalador seleccionado. Pulsa Guardar instalador para subirlo al share.'
-          : 'Instalador seleccionado. Se subirá al share al guardar la plantilla.'
+          ? t('gui.installerSelectedClickSaveInstallerToUploadIt')
+          : t('gui.installerSelectedItWillBeUploadedWhenThe')
       };
       state.focusTemplateNameOnRender = false;
       this.rerenderTemplateManager(state, onClose);
@@ -954,8 +954,8 @@ const AppsTemplateModule = {
       state.installerStatus = {
         type: 'info',
         message: pendingInstallerPath
-          ? 'Guardando plantilla y subiendo instalador al share...'
-          : 'Guardando plantilla...'
+          ? t('gui.savingTemplateAndUploadingInstallerToTheShare')
+          : t('gui.savingTemplate')
       };
       state.focusTemplateNameOnRender = false;
       this.rerenderTemplateManager(state, onClose);
@@ -1039,8 +1039,8 @@ const AppsTemplateModule = {
         state.installerStatus = {
           type: 'success',
           message: pendingInstallerPath
-            ? 'Plantilla guardada e instalador subido al share.'
-            : 'Plantilla guardada correctamente.'
+            ? t('gui.templateSavedAndInstallerUploadedToTheShare')
+            : t('gui.templateSavedSuccessfully')
         };
         App.toast(t('apps.customTemplateSaved', 'Plantilla guardada correctamente'), 'success');
       }

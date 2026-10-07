@@ -97,11 +97,11 @@ const AppsListModule = {
             <input type="text" class="form-input" id="apps-search" placeholder="${t('ous.searchApps')}" autocomplete="off" style="padding-left:34px;">
           </div>
           <select class="form-select" id="apps-group-by" style="width:auto; padding:6px 30px 6px 10px; min-width:120px;">
-            <option value="none"     ${this._state.groupBy === 'none'     ? 'selected' : ''}>${t('apps.noGroup')        || 'Sin agrupar'}</option>
-            <option value="template" ${this._state.groupBy === 'template' ? 'selected' : ''}>${t('apps.groupByTemplate') || 'Por plantilla'}</option>
+            <option value="none"     ${this._state.groupBy === 'none'     ? 'selected' : ''}>${t('apps.noGroup')        || t('gui.ungrouped')}</option>
+            <option value="template" ${this._state.groupBy === 'template' ? 'selected' : ''}>${t('apps.groupByTemplate') || t('gui.byTemplate')}</option>
           </select>
           <div class="view-toggle">
-            <button class="view-toggle-btn ${this._state.viewMode === 'grid' ? 'active' : ''}" data-view="grid" title="Cuadrícula">
+            <button class="view-toggle-btn ${this._state.viewMode === 'grid' ? 'active' : ''}" data-view="grid" title="${t('gui.grid')}">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             </button>
             <button class="view-toggle-btn ${this._state.viewMode === 'list' ? 'active' : ''}" data-view="list" title="Lista">
@@ -673,8 +673,8 @@ const AppsListModule = {
           <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;cursor:pointer;border:1px solid var(--border-color);">
             <input type="checkbox" id="_bulk-del-files" style="margin-top:2px;flex-shrink:0;" checked>
             <div>
-              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${t('apps.bulkDeleteCleanFiles') || 'Eliminar carpeta del share de red'}</div>
-              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t('apps.bulkDeleteCleanFilesHint') || 'Borra install.ps1, version.json e instaladores del share'}</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${t('apps.bulkDeleteCleanFiles') || t('gui.deleteTheFolderOnTheNetworkShare')}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t('apps.bulkDeleteCleanFilesHint') || t('gui.deleteInstallPs1VersionJsonAndInstallersFrom')}</div>
             </div>
           </label>
           ${appsWithGPO.length > 0 ? `

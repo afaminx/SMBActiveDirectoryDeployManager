@@ -237,8 +237,8 @@ const AppsWizardModule = {
         const tabStyle = (active) => `padding:8px 18px;background:none;border:none;border-bottom:2px solid ${active ? 'var(--primary-color)' : 'transparent'};cursor:pointer;font-size:13px;font-weight:600;color:${active ? 'var(--primary-color)' : 'var(--text-secondary)'};margin-bottom:-1px;transition:color .15s,border-color .15s;`;
         body += `
           <div style="display:flex;gap:0;border-bottom:1px solid var(--border-color);margin-bottom:var(--space-md);">
-            <button class="wiz-tab" data-tab="catalog" style="${tabStyle(state.catalogTab==='catalog')}">&#128722; Catálogo</button>
-            <button class="wiz-tab" data-tab="plantilla" style="${tabStyle(state.catalogTab==='plantilla')}">&#128203; Plantilla</button>
+            <button class="wiz-tab" data-tab="catalog" style="${tabStyle(state.catalogTab==='catalog')}">&#128722; ${t('gui.catalog')}</button>
+            <button class="wiz-tab" data-tab="plantilla" style="${tabStyle(state.catalogTab==='plantilla')}">&#128203; ${t('gui.template')}</button>
             <button class="wiz-tab" data-tab="manual" style="${tabStyle(state.catalogTab==='manual')}">&#128230; Manual</button>
           </div>
         `;
@@ -252,7 +252,7 @@ const AppsWizardModule = {
             <div style="display:flex;gap:8px;margin-bottom:var(--space-sm);align-items:center;flex-wrap:wrap;">
               <div style="position:relative;flex:1;min-width:160px;">
                 <svg style="position:absolute;left:8px;top:50%;transform:translateY(-50%);opacity:.4;pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" class="form-input" id="catalog-search" value="${App._esc(state.catalogSearch||'')}" placeholder="Buscar app..." style="padding-left:28px;padding-top:5px;padding-bottom:5px;font-size:13px;" autocomplete="off">
+                <input type="text" class="form-input" id="catalog-search" value="${App._esc(state.catalogSearch||'')}" placeholder="${t('gui.searchApps')}" style="padding-left:28px;padding-top:5px;padding-bottom:5px;font-size:13px;" autocomplete="off">
               </div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 ${cats.map(cat => `<button class="catalog-cat-btn" data-cat="${App._esc(cat)}" style="${catBtnStyle(activeCat===cat)}">${App._esc(cat)}</button>`).join('')}
@@ -321,7 +321,7 @@ const AppsWizardModule = {
           });
 
           if (!filteredCatalog.length && !odtMatchesQ) {
-            body += `<p style="text-align:center;color:var(--text-muted);padding:20px 0;font-size:13px;">No se encontraron apps</p>`;
+            body += `<p style="text-align:center;color:var(--text-muted);padding:20px 0;font-size:13px;">${t('gui.noAppsFound')}</p>`;
           }
           body += `</div>`; // close scrollable
 
@@ -329,7 +329,7 @@ const AppsWizardModule = {
           if (state.wizardWingetSearching) {
             body += `<div id="wiz-winget-section" style="display:flex;align-items:center;gap:6px;padding:8px 2px;font-size:12px;color:var(--text-muted);">
               <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span>
-              Buscando en winget CLI...
+              ${t('gui.searchingWingetCli')}
             </div>`;
           } else if (state.wizardWingetResults?.length > 0) {
             body += `<div id="wiz-winget-section" style="margin-top:8px;">
@@ -373,7 +373,7 @@ const AppsWizardModule = {
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:var(--space-sm);flex-wrap:wrap;">
               <div style="position:relative;max-width:360px;flex:1;min-width:260px;">
                 <svg style="position:absolute;left:8px;top:50%;transform:translateY(-50%);opacity:.4;pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" class="form-input" id="plantilla-search" value="${App._esc(state.plantillaSearch||'')}" placeholder="Buscar plantilla..." style="padding-left:28px;padding-top:6px;padding-bottom:6px;font-size:13px;" autocomplete="off">
+                <input type="text" class="form-input" id="plantilla-search" value="${App._esc(state.plantillaSearch||'')}" placeholder="${t('gui.searchTemplates')}" style="padding-left:28px;padding-top:6px;padding-bottom:6px;font-size:13px;" autocomplete="off">
               </div>
               <button class="btn btn-secondary btn-sm" type="button" id="btn-open-template-manager">${t('apps.newCustomTemplate', 'Nueva plantilla')}</button>
             </div>
@@ -512,13 +512,13 @@ const AppsWizardModule = {
           body += `
           <div style=”padding:12px 14px;background:rgba(108,99,255,0.07);border:1px solid rgba(108,99,255,0.25);border-radius:8px;margin-bottom:12px;”>
             <div style=”font-weight:600;font-size:13px;margin-bottom:4px;color:var(--primary-color);”>&#128230; Windows Package Manager</div>
-            <p style=”margin:0 0 8px 0;font-size:12px;color:var(--text-secondary);”>Se instalará automáticamente usando winget. No es necesario descargar ningún instalador.</p>
+            <p style=”margin:0 0 8px 0;font-size:12px;color:var(--text-secondary);”>${t('gui.installsAutomaticallyUsingWingetNoInstallerDownloadIs')}</p>
             ${_isMsStoreWiz ? `
             <div style=”padding:8px 10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);border-radius:6px;margin-bottom:8px;display:flex;gap:8px;align-items:flex-start;”>
               <span style=”font-size:14px;flex-shrink:0;”>🛒</span>
               <div style=”font-size:11px;color:var(--text-secondary);line-height:1.5;”>
-                <strong style=”color:var(--text-primary);”>Aplicación de MS Store</strong> — se instala en scope de usuario (no admite scope machine).<br>
-                El script omitirá --scope machine automáticamente. MS Store gestiona las actualizaciones.
+                <strong style=”color:var(--text-primary);”>${t('gui.msStoreApp')}</strong>${t('gui.installsInUserScopeMachineScopeIsUnsupported')}<br>
+                ${t('gui.theScriptOmitsScopeMachineAutomaticallyMsStore')}
               </div>
             </div>` : ''}
             <div class=”form-group” style=”margin-bottom:0;”>
@@ -549,24 +549,24 @@ const AppsWizardModule = {
               <div class="odt-header-icon">&#127970;</div>
               <div>
                 <div class="odt-header-title">Microsoft Office</div>
-                <div class="odt-header-sub">Office Deployment Tool · Sin descarga manual</div>
+                <div class="odt-header-sub">Office Deployment Tool · ${t('gui.noManualDownload')}</div>
               </div>
             </div>
 
             <div class="odt-section">
-              <div class="odt-section-label">Producto</div>
+              <div class="odt-section-label">${t('gui.product')}</div>
               <div class="odt-product-grid">
                 ${odtProds.map(p => `
                   <label class="odt-product-card ${cfg.product === p.id ? 'active' : ''}">
                     <input type="radio" name="odt-product-radio" value="${App._esc(p.id)}" ${cfg.product === p.id ? 'checked' : ''}>
                     <div class="odt-product-name">${App._esc(p.label)}</div>
-                    <div class="odt-product-badge">${p.type === 'subscription' ? 'Suscripción' : 'Licencia perpetua'}</div>
+                    <div class="odt-product-badge">${p.type === 'subscription' ? t('gui.subscription') : 'Licencia perpetua'}</div>
                   </label>`).join('')}
               </div>
             </div>
 
             <div class="odt-section">
-              <div class="odt-section-label">Aplicaciones a incluir</div>
+              <div class="odt-section-label">${t('gui.applicationsToInclude')}</div>
               <div class="odt-apps-grid">
                 ${odtApps2.map(a => `
                   <label class="odt-app-chip ${cfg.apps.includes(a.id) ? 'active' : ''}">
@@ -579,19 +579,19 @@ const AppsWizardModule = {
             <div class="odt-section">
               <div class="odt-options-row">
                 <div class="odt-option">
-                  <label class="odt-option-label">Idioma</label>
+                  <label class="odt-option-label">${t('gui.language')}</label>
                   <select class="form-select" id="odt-language">
                     ${odtLangs.map(l => `<option value="${App._esc(l.id)}" ${cfg.language === l.id ? 'selected' : ''}>${App._esc(l.label)}</option>`).join('')}
                   </select>
                 </div>
                 <div class="odt-option">
-                  <label class="odt-option-label">Canal</label>
+                  <label class="odt-option-label">${t('gui.channel')}</label>
                   <select class="form-select" id="odt-channel">
                     ${odtChans.map(c => `<option value="${App._esc(c.id)}" ${cfg.channel === c.id ? 'selected' : ''}>${App._esc(c.label)}</option>`).join('')}
                   </select>
                 </div>
                 <div class="odt-option odt-option-sm">
-                  <label class="odt-option-label">Arquitectura</label>
+                  <label class="odt-option-label">${t('gui.architecture')}</label>
                   <select class="form-select" id="odt-arch">
                     <option value="64" ${cfg.arch === '64' ? 'selected' : ''}>64 bits</option>
                     <option value="32" ${cfg.arch === '32' ? 'selected' : ''}>32 bits</option>
@@ -602,19 +602,19 @@ const AppsWizardModule = {
 
             <div class="odt-summary" id="odt-summary">
               <div class="odt-summary-row">
-                <span class="odt-summary-key">Producto</span>
+                <span class="odt-summary-key">${t('gui.product')}</span>
                 <span class="odt-summary-val" id="odt-sum-product">${App._esc(curProd?.label || cfg.product)}</span>
               </div>
               <div class="odt-summary-row">
                 <span class="odt-summary-key">Apps</span>
-                <span class="odt-summary-val" id="odt-sum-apps">${cfg.apps.length > 0 ? cfg.apps.map(id => { const a = odtApps2.find(x => x.id === id); return App._esc(a?.label || id); }).join(', ') : 'Ninguna seleccionada'}</span>
+                <span class="odt-summary-val" id="odt-sum-apps">${cfg.apps.length > 0 ? cfg.apps.map(id => { const a = odtApps2.find(x => x.id === id); return App._esc(a?.label || id); }).join(', ') : t('gui.noneSelected')}</span>
               </div>
               <div class="odt-summary-row">
-                <span class="odt-summary-key">Canal · Idioma · Arq</span>
+                <span class="odt-summary-key">${t('gui.channel')} · ${t('gui.language')} · Arq</span>
                 <span class="odt-summary-val" id="odt-sum-opts">${App._esc(curChan?.label || cfg.channel)} · ${App._esc(curLang?.label || cfg.language)} · ${cfg.arch} bits</span>
               </div>
               <div class="odt-summary-warning">
-                â± La instalaciÃ³n puede tardar entre 20 y 60 minutos en los equipos cliente
+                &#9201; ${t('gui.installationMayTake20To60MinutesOn')}
               </div>
             </div>
           </div>`;
@@ -637,7 +637,7 @@ const AppsWizardModule = {
                   installshield: 'InstallShield', squirrel: 'Squirrel', iexpress: 'IExpress',
                   'advanced-installer': 'Advanced Installer', 'setup-factory': 'Setup Factory',
                   wise: 'Wise', java: 'Java', adobe: 'Adobe', vcredist: 'VC++ Redist',
-                  dotnet: '.NET Runtime', msi: 'MSI', ps1: 'PowerShell', exe: 'EXE genérico'
+                  dotnet: '.NET Runtime', msi: 'MSI', ps1: 'PowerShell', exe: t('gui.genericExe')
                 };
                 const label = typeLabels[sig.type] || sig.type;
                 const confColor = sig.confidence === 'high' || sig.confidence === 'definitive'
@@ -646,7 +646,7 @@ const AppsWizardModule = {
                 return `<p class="form-hint" style="margin-top:4px;">
                   <span style="display:inline-flex;align-items:center;gap:5px;">
                     <span class="badge" style="background:rgba(99,102,241,.15);color:var(--primary-color);font-size:10px;">🔍 ${App._esc(label)}</span>
-                    <span style="color:${confColor};font-size:11px;">${sig.confidence === 'low' ? '(no detectado — usando /S genérico)' : 'detectado'}${pubInfo}</span>
+                    <span style="color:${confColor};font-size:11px;">${sig.confidence === 'low' ? t('gui.notDetectedUsingGenericS') : t('gui.detected')}${pubInfo}</span>
                     ${sig.suggestedArgs ? `<code style="font-size:10px;background:var(--bg-input);padding:1px 5px;border-radius:3px;">${App._esc(sig.suggestedArgs)}</code>` : ''}
                   </span>
                 </p>`;
@@ -1282,7 +1282,7 @@ const AppsWizardModule = {
     if (btnPickInstaller) {
       btnPickInstaller.addEventListener('click', async () => {
         this.saveStepData(state, templates);
-        const file = await window.api.config.selectFile([{ name: 'Instaladores', extensions: ['exe', 'msi', 'ps1'] }]);
+        const file = await window.api.config.selectFile([{ name: t('gui.installers'), extensions: ['exe', 'msi', 'ps1'] }]);
         if (file) {
           state.installerPath = file;
           state.installerSignature = null;
@@ -1376,7 +1376,7 @@ const AppsWizardModule = {
     if (btnPickXml) {
       btnPickXml.addEventListener('click', async () => {
         this.saveStepData(state, templates);
-        const file = await window.api.config.selectFile([{ name: 'Archivos XML', extensions: ['xml'] }]);
+        const file = await window.api.config.selectFile([{ name: t('gui.xmlFiles'), extensions: ['xml'] }]);
         if (file) {
           state.configXmlPath = file;
           renderWizard();
@@ -1399,7 +1399,7 @@ const AppsWizardModule = {
         const file = await window.api.config.selectFile([{
           name: fileField.label || t(
             AppUtils.isInstallerTemplateFile(fileField) ? 'apps.customTemplateInstallerFile' : 'apps.customTemplateConfigFile',
-            AppUtils.isInstallerTemplateFile(fileField) ? 'Instalador adjunto' : 'Archivo de configuración'
+            AppUtils.isInstallerTemplateFile(fileField) ? t('gui.attachedInstaller') : t('gui.configurationFile')
           ),
           extensions: normalizedExtensions
         }]);
@@ -1483,7 +1483,7 @@ const AppsWizardModule = {
         const checkedApps = [...odtWizard.querySelectorAll('input[name="odt-app"]:checked')]
           .map(cb => cb.closest('.odt-app-chip')?.textContent?.trim() || cb.value);
         const sumApps = document.getElementById('odt-sum-apps');
-        if (sumApps) sumApps.textContent = checkedApps.length > 0 ? checkedApps.join(', ') : 'Ninguna seleccionada';
+        if (sumApps) sumApps.textContent = checkedApps.length > 0 ? checkedApps.join(', ') : t('gui.noneSelected');
 
         const lang = document.getElementById('odt-language');
         const chan = document.getElementById('odt-channel');
@@ -2265,12 +2265,12 @@ const AppsWizardModule = {
                 <strong style="color:var(--accent-warning);">&#9888;&#65039; ${App._esc(gpoName)}</strong><br>
                 ${t('apps.gpoConflictBody') || 'Esta GPO ya existe en Active Directory. Fue creada por este programa.'}
               </div>
-              <p style="font-size:13px;color:var(--text-muted);margin:0;">${t('apps.gpoConflictQuestion') || '¿Qué deseas hacer?'}</p>
+              <p style="font-size:13px;color:var(--text-muted);margin:0;">${t('apps.gpoConflictQuestion') || t('gui.whatWouldYouLikeToDo')}</p>
             </div>`,
             `<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
               <button class="btn btn-secondary" id="_gpo-conflict-cancel">${t('common.cancel')}</button>
-              <button class="btn btn-secondary" id="_gpo-conflict-update">${t('apps.gpoConflictUpdate') || 'Actualizar script'}</button>
-              <button class="btn btn-danger" id="_gpo-conflict-replace">${t('apps.gpoConflictReplace') || 'Eliminar y recrear'}</button>
+              <button class="btn btn-secondary" id="_gpo-conflict-update">${t('apps.gpoConflictUpdate') || t('gui.updateScript')}</button>
+              <button class="btn btn-danger" id="_gpo-conflict-replace">${t('apps.gpoConflictReplace') || t('gui.deleteAndRecreate')}</button>
             </div>`
           );
           const pick = (val) => { App.closeModal(); resolve(val); };
@@ -2280,11 +2280,11 @@ const AppsWizardModule = {
         });
 
         if (choice === 'cancel') {
-          App.toast(t('apps.gpoConflictSkipped') || 'GPO sin cambios.', 'info');
+          App.toast(t('apps.gpoConflictSkipped') || t('gui.gpoUnchanged'), 'info');
           return;
         }
         if (choice === 'replace') {
-          App.toast(`${t('apps.gpoConflictDeleting') || 'Eliminando GPO'} ${gpoName}...`, 'info');
+          App.toast(`${t('apps.gpoConflictDeleting') || t('gui.deletingGpo')} ${gpoName}...`, 'info');
           const delResult = await window.api.ad.deleteGPO(gpoName);
           if (!delResult.success) {
             App.toast(`${t('apps.gpoDeleteError') || 'Could not delete GPO:'} ${delResult.error}`, 'error');

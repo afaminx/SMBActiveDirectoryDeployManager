@@ -225,7 +225,7 @@ const SetupPage = {
     if (App.rsatAvailable) {
       this.loadOUs(config.baseOUs || (config.baseOU ? [config.baseOU] : []));
     } else {
-      document.getElementById('setup-baseou-tree').innerHTML = `<p style="padding:8px;font-size:13px;color:var(--text-muted);">RSAT requerido para listar OUs</p>`;
+      document.getElementById('setup-baseou-tree').innerHTML = `<p style="padding:8px;font-size:13px;color:var(--text-muted);">${t('gui.ldapConnectivityIsRequiredToListOus')}</p>`;
     }
 
     document.getElementById('btn-save-setup').addEventListener('click', async () => {
@@ -421,7 +421,7 @@ const SetupPage = {
         📁 ${App._esc(selectedName)}
         <button type="button" class="btn btn-ghost btn-sm setup-baseou-remove" data-dn="${App._esc(dn)}" style="font-size:11px;padding:0 4px;min-height:auto;">✕</button>
       </span>`;
-    }).join('') + `<button type="button" class="btn btn-ghost btn-sm" id="setup-baseou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || 'Borrar selección'}</button>`;
+    }).join('') + `<button type="button" class="btn btn-ghost btn-sm" id="setup-baseou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || t('gui.clearSelection')}</button>`;
 
     selectedEl.querySelectorAll('.setup-baseou-remove').forEach(btn => {
       btn.onclick = (e) => {

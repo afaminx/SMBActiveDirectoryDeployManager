@@ -1641,6 +1641,18 @@ const TRANSLATIONS_ES = {
   }
 };
 
+const guiTranslations = require('./gui-translations');
+for (const [language, dictionary] of [['english', TRANSLATIONS_EN], ['spanish', TRANSLATIONS_ES]]) {
+  for (const [key, text] of Object.entries(guiTranslations.additional[language])) {
+    const parts = key.split('.');
+    const leaf = parts.pop();
+    let section = dictionary;
+    for (const part of parts) section = section[part] ||= {};
+    if (section[leaf] === undefined) section[leaf] = text;
+  }
+  dictionary.gui = Object.fromEntries(guiTranslations.phrases.map(item => [item.key, item[language === 'english' ? 'en' : 'es']]));
+}
+
 const i18nService = {
   initialize() {
     // No-op: translations are embedded in code only.
