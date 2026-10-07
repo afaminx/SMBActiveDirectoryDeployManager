@@ -137,6 +137,7 @@ app.whenReady().then(() => {
 
   // ─── IPC Handlers: AD Service ────────────────────────────────────
   ipcMain.handle('ad:checkRSAT', () => adService.checkRSAT());
+  ipcMain.handle('ad:testADConnection', () => adService.testADConnection());
   ipcMain.handle('ad:getOUs', (_, ignoreBaseOU = false) => {
     try { assertBoolean(ignoreBaseOU, 'ignoreBaseOU'); }
     catch (e) { return { success: false, error: 'Invalid arguments', data: [] }; }
@@ -155,7 +156,7 @@ app.whenReady().then(() => {
     if (result.success) {
       logSink.addSync('gpo_create', {
         source: 'ad', level: 'info',
-        message: `GPO creada: ${name}`,
+        message: `GPO created: ${name}`,
         gpoName: name
       });
     }
@@ -178,7 +179,7 @@ app.whenReady().then(() => {
     if (result.success) {
       logSink.addSync('gpo_delete', {
         source: 'ad', level: 'warn',
-        message: `GPO eliminada: ${gpoName}`,
+        message: `GPO deleted: ${gpoName}`,
         gpoName
       });
     }
@@ -298,7 +299,7 @@ app.whenReady().then(() => {
       if (result.success) {
         logSink.addSync('script_deploy', {
           source: 'deploy', level: 'info',
-          message: `Script desplegado: ${appConfig.name || appId}`,
+          message: `Script deployed: ${appConfig.name || appId}`,
           appName: appConfig.name || appId
         });
       }
@@ -521,7 +522,7 @@ app.whenReady().then(() => {
           bundleName: bundle.name,
           version: bundle.version,
           source: 'bundle',
-          message: `Bundle desplegado: ${bundle.name}`
+          message: `Bundle deployed: ${bundle.name}`
         });
       }
       return result;
@@ -553,7 +554,7 @@ app.whenReady().then(() => {
           bundleName: bundle.name,
           version: bundle.version,
           source: 'bundle',
-          message: `Desinstalacion de bundle preparada: ${bundle.name}`
+          message: `Bundle uninstall prepared: ${bundle.name}`
         });
       }
       return result;
@@ -700,7 +701,7 @@ app.whenReady().then(() => {
         apiBaseUrl: peek.apiBaseUrl,
         equipoId: enroll.equipoId,
         source: 'logging',
-        message: `Equipo enrolado en servidor dedicado: ${peek.apiBaseUrl}`
+        message: `Computer enrolled with the dedicated server: ${peek.apiBaseUrl}`
       });
       return { success: true, equipoId: enroll.equipoId };
     } catch (err) {
@@ -760,7 +761,7 @@ app.whenReady().then(() => {
 
       await logSink.add('log_share_config_published', {
         source: 'logging',
-        message: `Configuracion de logs publicada en share: ${cfg.shareId}`,
+        message: `Logging configuration published to share: ${cfg.shareId}`,
         shareId: cfg.shareId,
         apiBaseUrl
       });

@@ -46,6 +46,31 @@ vi.mock('../services/template-service', () => ({
 
 const svc = require('../services/script-service');
 
+describe('deployment script diagnostics', () => {
+  it('parses generated install/uninstall scripts after translating their diagnostics', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const { execFileSync } = require('child_process');
+    const directory = path.join(__dirname, 'generated-powershell', 'deployment-syntax');
+    fs.mkdirSync(directory, { recursive: true });
+    const scripts = ['generic', 'wazuh', 'winget', 'office'].map(template => svc.generateScript(base({
+      template, wingetId: 'Notepad++.Notepad++',
+      customParams: { manager: 'dc.example.test', group: 'test' }
+    })));
+    for (const uninstall of [
+      { mode: 'auto-msi' }, { mode: 'auto-registry', registryMatchName: 'TestApp' },
+      { mode: 'manual', command: 'C:\\Tools\\uninstall.exe', args: '/quiet' },
+      { mode: 'winget', wingetId: 'Notepad++.Notepad++' }
+    ]) scripts.push(svc.generateUninstallScript(base({ template: 'generic', installerType: 'msi', uninstall, wingetId: 'Notepad++.Notepad++' })));
+    scripts.forEach((script, index) => {
+      expect(script).not.toMatch(/AVISO:|OMITIDO:|Fallo instalando|No se pudo|instalador devolvio/);
+      fs.writeFileSync(path.join(directory, `operation-${index}.ps1`), '\uFEFF' + script);
+    });
+    const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'validate-powershell.ps1'), '-Directory', directory], { encoding: 'utf8', windowsHide: true });
+    expect(output).toContain('8 scripts parsed');
+  });
+});
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function base(overrides = {}) {
   return {
@@ -151,17 +176,17 @@ describe('generateScript — generic template', () => {
     expect(script).toContain('$ManagedInstallerMaxAttempts = 5');
     expect(script).toContain('function Test-InstallerExecutionInProgress');
     expect(script).toContain('function Wait-InstallerExecutionIdle');
-    expect(script).toContain("AVISO: Se detecto otra instalacion en curso. Esperando a que termine...");
+    expect(script).toContain("WARNING: Another installation is running. Waiting for it to finish...");
     expect(script).toContain('for ($attempt = 1; $attempt -le $ManagedInstallerMaxAttempts; $attempt++)');
-    expect(script).toContain("instalador devolvio 1618: otra instalacion en curso");
-    expect(script).toContain('throw "$lastFailureMessage tras $ManagedInstallerMaxAttempts intentos');
+    expect(script).toContain("installer returned 1618: another installation is running");
+    expect(script).toContain('throw "$lastFailureMessage after $ManagedInstallerMaxAttempts attempts');
   });
 
   it('retries failed trackers with the same hash up to five times instead of requiring an app update immediately', () => {
     const script = svc.generateScript(base({ template: 'generic' }));
     expect(script).toContain('$PreviousFailureCount = 1');
     expect(script).toContain('$TrackerRetryBase = $PreviousFailureCount');
-    expect(script).toContain('La instalacion fallo previamente con este hash');
+    expect(script).toContain('Installation previously failed with this hash');
     expect(script).toContain("retryCount = ($TrackerRetryBase + 1)");
     expect(script).not.toContain('Actualiza la app para reintentar.');
   });
@@ -259,9 +284,9 @@ describe('generateScript — winget template', () => {
       wingetId: 'Spotify.Spotify'
     }));
     expect(script).toContain('function Wait-WingetPackageInstalled');
-    expect(script).toContain('Tracker marcaba exito, pero $wingetId no aparece instalado');
+    expect(script).toContain('Tracker reported success, but $wingetId is not installed');
     expect(script).toContain('Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource');
-    expect(script).toContain('winget finalizo sin error bloqueante, pero no se pudo confirmar la instalacion real');
+    expect(script).toContain('winget completed without a blocking error, but the installation could not be confirmed');
     expect(script).toContain("if (($ec -in $successCodes) -and (Wait-WingetPackageInstalled -WingetPath $WingetUser -PackageId $wingetId -PackageSource $wingetSource))");
   });
 });
@@ -498,7 +523,7 @@ describe('generateUninstallScript', () => {
 
     expect(script).toContain('C:\\Program Files\\Tool\\uninstall.exe');
     expect(script).toContain('/quiet /norestart');
-    expect(script).toContain('Ejecutando comando manual');
+    expect(script).toContain('Running manual command');
   });
 
   it('skips uninstall when a configured file detection anchor is absent', () => {

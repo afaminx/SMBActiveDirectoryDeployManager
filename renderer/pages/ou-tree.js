@@ -141,7 +141,7 @@ const OUsPage = {
       const visibleOUs = this.state.flatOUs.map(ou => ou.dn);
       const reconcileResult = await window.api.apps.reconcileManagedAssignments(visibleOUs).catch(err => ({
         success: false,
-        error: err?.message || 'Error desconocido',
+        error: err?.message || 'Unknown error',
         data: []
       }));
 

@@ -249,7 +249,7 @@ class RemoteSink {
         activityLog.add('log_backend_reconnected', {
           source: 'logging',
           level: 'info',
-          message: `Conexión con servidor de logs restaurada: ${this.cfg.apiBaseUrl}`
+          message: `Connection to the logging server restored: ${this.cfg.apiBaseUrl}`
         });
       } else {
         this.online = true;
@@ -267,7 +267,7 @@ class RemoteSink {
         activityLog.add('log_backend_offline', {
           source: 'logging',
           level: 'warn',
-          message: `Servidor de logs no disponible tras ${this.consecutiveFailures} intentos: ${this.lastError}`,
+          message: `Logging server unavailable after ${this.consecutiveFailures} attempts: ${this.lastError}`,
           host: this.cfg.apiBaseUrl
         });
       } else if (this.consecutiveFailures >= FAILURE_THRESHOLD) {

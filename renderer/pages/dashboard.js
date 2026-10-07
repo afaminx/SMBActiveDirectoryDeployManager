@@ -214,7 +214,7 @@ const DashboardPage = {
                 <li>${t('dashboard.cause2')}</li>
                 <li>${t('dashboard.cause3')}</li>
               </ul>
-              <p style="margin-top:8px;color:var(--text-muted);">Instala RSAT con: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;font-size:var(--font-xs);">Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0</code></p>
+              <p style="margin-top:8px;color:var(--text-muted);">Instala RSAT con: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;font-size:var(--font-xs);">Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code></p>
             </div>
           </div>
         ` : ''}
@@ -372,37 +372,37 @@ const DashboardPage = {
     const version    = e(entry.version || '1.0.0');
     const newVersion = entry.newVersion ? ` → v${e(entry.newVersion)}` : '';
     const texts = {
-      app_create:             `App creada: <strong>${appName}</strong> v${version}`,
-      app_update:             `App actualizada: <strong>${appName}</strong>`,
-      app_quick_update:       `Actualización rápida: <strong>${appName}</strong>`,
+      app_create:             `App created: <strong>${appName}</strong> v${version}`,
+      app_update:             `App updated: <strong>${appName}</strong>`,
+      app_quick_update:       `Quick update: <strong>${appName}</strong>`,
       app_auto_update:        `Auto-update: <strong>${appName}</strong>${newVersion}`,
-      app_uninstall_prepare:  `Desinstalación preparada: <strong>${appName}</strong>`,
-      app_disable:            `App deshabilitada: <strong>${appName}</strong>`,
-      app_delete:             `App eliminada: <strong>${appName}</strong>`,
-      bundle_create:          `Bundle creado: <strong>${bundleName}</strong> (${Number(entry.appCount) || 0} apps)`,
-      bundle_deploy:          `Bundle desplegado: <strong>${bundleName}</strong>`,
-      bundle_uninstall_prepare: `Desinstalación de bundle: <strong>${bundleName}</strong>`,
-      bundle_update:          `Bundle actualizado: <strong>${bundleName}</strong>`,
-      bundle_delete:          `Bundle eliminado`,
-      bundle_disable:         `Bundle deshabilitado: <strong>${bundleName}</strong>`,
-      gpo_create:             `GPO creada: <strong>${gpoName}</strong>`,
-      gpo_delete:             `GPO eliminada: <strong>${gpoName}</strong>`,
-      script_deploy:          `Script desplegado: <strong>${appName}</strong>`,
-      install_success:        `Instalado: <strong>${appName}</strong> v${version}`,
-      install_failed:         `Error de instalación: <strong>${appName}</strong>`,
-      install_skipped:        `Omitido: <strong>${appName}</strong>`,
-      uninstall_success:      `Desinstalado: <strong>${appName}</strong>`,
-      uninstall_failed:       `Error de desinstalación: <strong>${appName}</strong>`,
-      config_export:          `Configuración exportada`,
-      config_import:          `Configuración importada`,
-      log_backend_enrolled:   `Enrolled en servidor de logs`,
-      log_backend_reconnected:`Servidor de logs reconectado`,
-      log_backend_offline:    `Servidor de logs no disponible`,
-      log_share_config_published:           `Config de logging publicada`,
-      app_scripts_regenerated:              `Scripts regenerados: <strong>${appName}</strong>`,
-      script_update_background_started:     `Actualización de scripts iniciada`,
-      script_update_background_completed:   `Actualización de scripts completada`,
-      ps_error:                             `Error de PowerShell`,
+      app_uninstall_prepare:  `Uninstall prepared: <strong>${appName}</strong>`,
+      app_disable:            `App disabled: <strong>${appName}</strong>`,
+      app_delete:             `App deleted: <strong>${appName}</strong>`,
+      bundle_create:          `Bundle created: <strong>${bundleName}</strong> (${Number(entry.appCount) || 0} apps)`,
+      bundle_deploy:          `Bundle deployed: <strong>${bundleName}</strong>`,
+      bundle_uninstall_prepare: `Bundle uninstall prepared: <strong>${bundleName}</strong>`,
+      bundle_update:          `Bundle updated: <strong>${bundleName}</strong>`,
+      bundle_delete:          `Bundle deleted`,
+      bundle_disable:         `Bundle disabled: <strong>${bundleName}</strong>`,
+      gpo_create:             `GPO created: <strong>${gpoName}</strong>`,
+      gpo_delete:             `GPO deleted: <strong>${gpoName}</strong>`,
+      script_deploy:          `Script deployed: <strong>${appName}</strong>`,
+      install_success:        `Installed: <strong>${appName}</strong> v${version}`,
+      install_failed:         `Installation failed: <strong>${appName}</strong>`,
+      install_skipped:        `Skipped: <strong>${appName}</strong>`,
+      uninstall_success:      `Uninstalled: <strong>${appName}</strong>`,
+      uninstall_failed:       `Uninstall failed: <strong>${appName}</strong>`,
+      config_export:          `Configuration exported`,
+      config_import:          `Configuration imported`,
+      log_backend_enrolled:   `Enrolled with logging server`,
+      log_backend_reconnected:`Logging server reconnected`,
+      log_backend_offline:    `Logging server unavailable`,
+      log_share_config_published:           `Logging configuration published`,
+      app_scripts_regenerated:              `Scripts regenerated: <strong>${appName}</strong>`,
+      script_update_background_started:     `Script update started`,
+      script_update_background_completed:   `Script update completed`,
+      ps_error:                             `PowerShell error`,
     };
     return texts[String(entry.action || '')] || App._esc(entry.action || entry.message || '');
   }

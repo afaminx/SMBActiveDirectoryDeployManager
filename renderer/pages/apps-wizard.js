@@ -2287,7 +2287,7 @@ const AppsWizardModule = {
           App.toast(`${t('apps.gpoConflictDeleting') || 'Eliminando GPO'} ${gpoName}...`, 'info');
           const delResult = await window.api.ad.deleteGPO(gpoName);
           if (!delResult.success) {
-            App.toast(`${t('apps.gpoDeleteError') || 'Error al eliminar GPO:'} ${delResult.error}`, 'error');
+            App.toast(`${t('apps.gpoDeleteError') || 'Could not delete GPO:'} ${delResult.error}`, 'error');
             return;
           }
         }

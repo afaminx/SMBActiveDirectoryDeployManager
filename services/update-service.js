@@ -1,6 +1,6 @@
 const https = require('https');
 
-const GITHUB_REPO = 'gpandres/ActiveDirectoryDeployManager';
+const GITHUB_REPO = 'afaminx/SMBActiveDirectoryDeployManager';
 const RELEASES_API_PATH = `/repos/${GITHUB_REPO}/releases/latest`;
 const RELEASE_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 

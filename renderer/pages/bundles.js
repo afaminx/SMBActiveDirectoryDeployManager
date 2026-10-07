@@ -1401,7 +1401,7 @@ const BundlesPage = {
           if (!app) continue;
           const result = await window.api.scripts.deployUninstall(app);
           if (!result.success) {
-            throw new Error(`${app.name}: ${result.error || 'No se pudo preparar uninstall.ps1'}`);
+            throw new Error(`${app.name}: ${result.error || 'Could not prepare uninstall.ps1'}`);
           }
           await window.api.apps.update(app.id, {
             uninstallDeployedPath: result.uninstallPath || result.path || '',
@@ -1412,7 +1412,7 @@ const BundlesPage = {
 
         const bundleResult = await window.api.bundles.deployUninstall(id);
         if (!bundleResult.success) {
-          throw new Error(bundleResult.error || 'No se pudo preparar el uninstall del bundle');
+          throw new Error(bundleResult.error || 'Could not prepare bundle uninstall');
         }
 
         await window.api.bundles.update(id, {
@@ -1425,11 +1425,11 @@ const BundlesPage = {
         const switchGPO = document.getElementById('chk-bundle-switch-uninstall-gpo')?.checked ?? false;
         if (bundle.gpoName && switchGPO && bundleResult.path) {
           if (!App.rsatAvailable) {
-            App.toast(t('apps.uninstallGpoSkipped', 'La GPO no se pudo actualizar porque RSAT/GPMC no está disponible.'), 'warning');
+            App.toast(t('apps.uninstallGpoSkipped', 'Could not update the GPO because Group Policy tools are unavailable.'), 'warning');
           } else {
             const gpoResult = await window.api.ad.createGPO(bundle.gpoName, bundleResult.path, targetOUs);
             if (!gpoResult.success) {
-              App.toast(`${t('apps.uninstallGpoWarn', 'El script uninstall se generó, pero no se pudo reapuntar la GPO.')}: ${gpoResult.error}`, 'warning');
+              App.toast(`${t('apps.uninstallGpoWarn', 'Uninstall script generated, but the GPO could not be updated.')}: ${gpoResult.error}`, 'warning');
             }
           }
         }

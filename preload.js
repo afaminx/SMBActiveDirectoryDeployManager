@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('api', {
   // Active Directory
   ad: {
     checkRSAT: () => ipcRenderer.invoke('ad:checkRSAT'),
+    testADConnection: () => ipcRenderer.invoke('ad:testADConnection'),
     getOUs: (ignoreBaseOU = false) => ipcRenderer.invoke('ad:getOUs', ignoreBaseOU),
     getGPOs: () => ipcRenderer.invoke('ad:getGPOs'),
     getGPOLinkCounts: () => ipcRenderer.invoke('ad:getGPOLinkCounts'),

@@ -588,7 +588,7 @@ function buildUninstallScriptShell(appConfig, uninstallConfig, body, options = {
   const appPresenceDetection = buildUninstallPresenceDetectionSnippet(appConfig);
   const appPresenceGuard = appPresenceDetection ? `
 if (-not (Test-AppPresentForUninstall)) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: La regla de deteccion indica que $NombreApp ya no esta instalada."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: The detection rule indicates that $NombreApp is no longer installed."
     Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ note = 'detection-rule-absent' }
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 0
@@ -628,10 +628,10 @@ $UninstallMode = "${mode}"
 if ($LogFile) { Start-Transcript -Path $LogFile -Force -ErrorAction SilentlyContinue }
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ===== AppDeploy Manager ============================="
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] App     : $NombreApp"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Accion  : uninstall [$UninstallMode]"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Equipo  : $env:COMPUTERNAME"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Usuario : $env:USERNAME"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Fuente  : $PSScriptRoot"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Action  : uninstall [$UninstallMode]"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Computer: $env:COMPUTERNAME"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] User    : $env:USERNAME"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Source  : $PSScriptRoot"
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ====================================================="
 
 ${getRemoteScriptLoggingLogic()}
@@ -643,7 +643,7 @@ if (Test-Path -LiteralPath $VersionFile) {
         if ($Manifest.hash) { $CurrentHash = [string]$Manifest.hash }
         if ($Manifest.uninstall) { $ManifestUninstall = $Manifest.uninstall }
     } catch {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: No se pudo leer version.json - $_"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Could not read version.json - $_"
     }
 }
 
@@ -745,26 +745,26 @@ function Resolve-MsiProductCode {
     $ProductCode = Resolve-MsiProductCode -PreferredCode $PreferredProductCode -InstallerName $PrimaryInstallerName -DisplayMatchName $RegistryMatchName
 
     if (-not $ProductCode) {
-        throw "No se pudo determinar el ProductCode MSI para $NombreApp"
+        throw "Could not determine the MSI ProductCode for $NombreApp"
     }
 
     $InstalledEntry = Get-InstalledApplicationEntries | Where-Object { $_.ProductCode -eq $ProductCode } | Select-Object -First 1
     if (-not $InstalledEntry) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: El producto MSI ya no aparece instalado ($ProductCode)"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: The MSI product is no longer installed ($ProductCode)"
         Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ productCode = $ProductCode; note = 'already-absent' }
         Stop-Transcript -ErrorAction SilentlyContinue
         exit 0
     }
 
     $MsiArgs = "/x $ProductCode REBOOT=ReallySuppress /qn /norestart"
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Ejecutando: msiexec.exe $MsiArgs"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Running: msiexec.exe $MsiArgs"
     $Process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $MsiArgs -Wait -NoNewWindow -PassThru
     if ($Process.ExitCode -notin @(0, 3010, 1641, 1605)) {
-        throw "msiexec devolvio $($Process.ExitCode)"
+        throw "msiexec returned $($Process.ExitCode)"
     }
 
     Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ productCode = $ProductCode }
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: MSI desinstalado"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: MSI uninstalled"
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 0`;
 
@@ -899,7 +899,7 @@ function Get-MsiUninstallArguments {
     $TargetEntry = Resolve-RegistryUninstallEntry -MatchName $RegistryMatchName -MatchPublisher $RegistryMatchPublisher -PreferredProductCode $PreferredProductCode
 
     if (-not $TargetEntry) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: No se encontro una coincidencia instalada para desinstalar"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: No installed match was found to uninstall"
         Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ note = 'not-found' }
         Stop-Transcript -ErrorAction SilentlyContinue
         exit 0
@@ -908,19 +908,19 @@ function Get-MsiUninstallArguments {
     $CommandLine = if ($TargetEntry.QuietUninstallString) { [string]$TargetEntry.QuietUninstallString } else { [string]$TargetEntry.UninstallString }
     $MsiArgs = Get-MsiUninstallArguments -CommandLine $CommandLine -PreferredProductCode $TargetEntry.ProductCode
     if ($MsiArgs) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Ejecutando MSI silent uninstall para $($TargetEntry.DisplayName)"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Running silent MSI uninstall for $($TargetEntry.DisplayName)"
         $Process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $MsiArgs -Wait -NoNewWindow -PassThru
         if ($Process.ExitCode -notin @(0, 3010, 1641, 1605)) {
-            throw "msiexec devolvio $($Process.ExitCode)"
+            throw "msiexec returned $($Process.ExitCode)"
         }
     } else {
         if (-not $CommandLine) {
-            throw "La entrada de registro no tiene comando de desinstalacion"
+            throw "The registry entry has no uninstall command"
         }
 
         $ParsedCommand = Split-CommandLine -CommandLine $CommandLine
         if (-not $ParsedCommand -or -not $ParsedCommand.FilePath) {
-            throw "No se pudo interpretar el comando de desinstalacion: $CommandLine"
+            throw "Could not parse the uninstall command: $CommandLine"
         }
 
         $ExpandedPath = [System.Environment]::ExpandEnvironmentVariables([string]$ParsedCommand.FilePath)
@@ -932,12 +932,12 @@ function Get-MsiUninstallArguments {
         }
 
         if ($Process.ExitCode -notin @(0, 3010, 1641, 1605)) {
-            throw "El desinstalador devolvio $($Process.ExitCode)"
+            throw "The uninstaller returned $($Process.ExitCode)"
         }
     }
 
     Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ displayName = $TargetEntry.DisplayName; productCode = $TargetEntry.ProductCode }
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Desinstalacion completada para $($TargetEntry.DisplayName)"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Uninstall completed for $($TargetEntry.DisplayName)"
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 0`;
 
@@ -954,10 +954,10 @@ function generateManualUninstallScript(appConfig, uninstallConfig) {
   const body = `    $CommandPath = [System.Environment]::ExpandEnvironmentVariables("${command}")
     $CommandArgs = [System.Environment]::ExpandEnvironmentVariables("${args}")
     if (-not $CommandPath) {
-        throw "No se configuro un comando de desinstalacion"
+        throw "No uninstall command is configured"
     }
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Ejecutando comando manual: $CommandPath $CommandArgs"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Running manual command: $CommandPath $CommandArgs"
     if ($CommandPath.ToLowerInvariant().EndsWith('.ps1')) {
         $Process = Start-Process -FilePath 'PowerShell.exe' -ArgumentList "-ExecutionPolicy Bypass -File \`"$CommandPath\`" $CommandArgs" -Wait -NoNewWindow -PassThru
     } else {
@@ -965,11 +965,11 @@ function generateManualUninstallScript(appConfig, uninstallConfig) {
     }
 
     if ($Process.ExitCode -notin @(0, 3010, 1641, 1605)) {
-        throw "El comando manual devolvio $($Process.ExitCode)"
+        throw "The manual command returned $($Process.ExitCode)"
     }
 
     Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ command = $CommandPath; args = $CommandArgs }
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Comando manual completado"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Manual command completed"
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 0`;
 
@@ -1024,16 +1024,16 @@ function Test-WingetPackageInstalled {
   const body = `    $wingetId = "${wingetId}"
     $wingetSource = "${wingetSource}"
     if (-not $wingetId) {
-        throw "No se configuro un package id de winget"
+        throw "No winget package ID is configured"
     }
 
     $Winget = Resolve-WingetPath
     if (-not $Winget) {
-        throw "No se encontro winget.exe en el equipo"
+        throw "winget.exe was not found on this computer"
     }
 
     if (-not (Test-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource)) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: $wingetId ya no aparece instalado"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: $wingetId is no longer installed"
         Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ wingetId = $wingetId; note = 'already-absent' }
         Stop-Transcript -ErrorAction SilentlyContinue
         exit 0
@@ -1042,15 +1042,15 @@ function Test-WingetPackageInstalled {
     $args = @('uninstall', '--id', $wingetId, '--exact', '--silent', '--accept-source-agreements', '--disable-interactivity')
     if ($wingetSource) { $args += @('--source', $wingetSource) }
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Ejecutando: winget $($args -join ' ')"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Running: winget $($args -join ' ')"
     & $Winget @args 2>&1 | Out-Null
     $exitCode = $LASTEXITCODE
     if ($exitCode -notin @(0, 1605, 1614)) {
-        throw "winget devolvio $exitCode"
+        throw "winget returned $exitCode"
     }
 
     Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ wingetId = $wingetId; source = $wingetSource }
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Winget desinstalado"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Winget uninstalled"
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 0`;
 
@@ -1191,7 +1191,7 @@ function Clear-DeployCacheCleanupPending {
     try {
         Remove-Item -LiteralPath $MarkerPath -Force -ErrorAction Stop
     } catch {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: No se pudo borrar el marcador de limpieza: $_"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Could not delete the cleanup marker: $_"
     }
 }
 
@@ -1211,7 +1211,7 @@ function Register-DeployCacheCleanupPending {
         } | ConvertTo-Json | Set-Content -LiteralPath $MarkerPath -Force -Encoding UTF8
         return $true
     } catch {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: No se pudo registrar la limpieza diferida: $_"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Could not register deferred cleanup: $_"
         return $false
     }
 }
@@ -1224,7 +1224,7 @@ function Invoke-DeployCacheCleanup {
         [string]$MarkerPath = ""
     )
     if (-not (Test-DeployCachePathSafety -Path $CacheDir)) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Ruta de cache no segura, se omite la limpieza: $CacheDir"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Unsafe cache path; skipping cleanup: $CacheDir"
         return $false
     }
     if (-not (Test-Path -LiteralPath $CacheDir)) {
@@ -1235,14 +1235,14 @@ function Invoke-DeployCacheCleanup {
         try {
             Remove-Item -LiteralPath $CacheDir -Recurse -Force -ErrorAction Stop
             if ($MarkerPath) { Clear-DeployCacheCleanupPending -MarkerPath $MarkerPath }
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Cache local eliminada: $CacheDir"
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Local cache removed: $CacheDir"
             return $true
         } catch {
             if ($attempt -lt $MaxAttempts) {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Cache en uso, reintentando limpieza ($attempt/$MaxAttempts)..."
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Cache in use; retrying cleanup ($attempt/$MaxAttempts)..."
                 Start-Sleep -Seconds $SleepSeconds
             } else {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: No se pudo eliminar la cache local: $_"
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Could not remove the local cache: $_"
             }
         }
     }
@@ -1303,10 +1303,10 @@ exit 1
         $workerShell = Join-Path $env:WINDIR "System32\\WindowsPowerShell\\v1.0\\powershell.exe"
         if (-not (Test-Path -LiteralPath $workerShell)) { $workerShell = "PowerShell.exe" }
         Start-Process -FilePath $workerShell -ArgumentList @("-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encodedWorker) -WindowStyle Hidden | Out-Null
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Cache ocupada; limpieza diferida iniciada."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Cache busy; deferred cleanup started."
         return $true
     } catch {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: No se pudo iniciar la limpieza diferida: $_"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Could not start deferred cleanup: $_"
         return $false
     }
 }
@@ -1349,7 +1349,7 @@ function Invoke-PendingDeployCacheCleanups {
         }
 
         if (Invoke-DeployCacheCleanup -CacheDir $pendingCacheDir -MaxAttempts 2 -SleepSeconds 1 -MarkerPath $markerFile) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Limpieza diferida completada: $pendingCacheDir"
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Deferred cleanup completed: $pendingCacheDir"
         }
     }
 }
@@ -1661,21 +1661,21 @@ function Wait-InstallerExecutionIdle {
     $waitNotified = $false
     while (Test-InstallerExecutionInProgress) {
         if (-not $waitNotified) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Se detecto otra instalacion en curso. Esperando a que termine..."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Another installation is running. Waiting for it to finish..."
             $waitNotified = $true
         } else {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Otra instalacion sigue en curso. Nueva comprobacion en $PollSeconds s."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Another installation is still running. Checking again in $PollSeconds seconds."
         }
 
         if ((Get-Date) -ge $deadline) {
-            throw "otra instalacion sigue en curso tras esperar $MaxWaitSeconds segundos"
+            throw "another installation is still running after waiting $MaxWaitSeconds seconds"
         }
 
         Start-Sleep -Seconds $PollSeconds
     }
 
     if ($waitNotified) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] La otra instalacion ha terminado. Continuando..."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] The other installation has finished. Continuing..."
         Start-Sleep -Seconds 5
     }
 }
@@ -1747,7 +1747,7 @@ function Invoke-ManagedInstaller {
     )
 
     if (-not $InstallerPath) {
-        throw 'instalador sin ruta'
+        throw 'installer path is missing'
     }
 
     $installerMetadata = Get-InstallerDetectionMetadata -InstallerPath $InstallerPath -FallbackDisplayName $FallbackDisplayName
@@ -1757,9 +1757,9 @@ function Invoke-ManagedInstaller {
         $InstallDisposition = 'skipped'
         $conflictLabel = Get-InstallerConflictLabel -Conflict $conflictState
         if ($conflictLabel) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Ya existe una version igual o mas reciente de $conflictLabel. No se ejecuta el instalador."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: An equal or newer version of $conflictLabel is already installed. Skipping the installer."
         } else {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Ya existe una version igual o mas reciente. No se ejecuta el instalador."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: An equal or newer version is already installed. Skipping the installer."
         }
         return [pscustomobject]@{ Status = 'skipped'; ExitCode = 1638 }
     }
@@ -1774,7 +1774,7 @@ function Invoke-ManagedInstaller {
     $lastFailureMessage = ''
     for ($attempt = 1; $attempt -le $ManagedInstallerMaxAttempts; $attempt++) {
         if ($attempt -gt 1) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Reintentando instalacion ($attempt/$ManagedInstallerMaxAttempts)..."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Retrying installation ($attempt/$ManagedInstallerMaxAttempts)..."
             Start-Sleep -Seconds $ManagedInstallerRetryDelaySeconds
         }
 
@@ -1789,14 +1789,14 @@ function Invoke-ManagedInstaller {
                 return [pscustomobject]@{ Status = 'success'; ExitCode = $process.ExitCode; Attempts = $attempt; Retried = ($attempt -gt 1) }
             }
 
-            $lastFailureMessage = "instalador finalizo con codigo $($process.ExitCode), pero no se pudo confirmar la instalacion real"
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: $lastFailureMessage."
+            $lastFailureMessage = "installer finished with code $($process.ExitCode), but the installation could not be confirmed"
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: $lastFailureMessage."
             continue
         }
 
         if ($process.ExitCode -eq 1618) {
-            $lastFailureMessage = 'instalador devolvio 1618: otra instalacion en curso'
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: $lastFailureMessage."
+            $lastFailureMessage = 'installer returned 1618: another installation is running'
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: $lastFailureMessage."
             continue
         }
 
@@ -1807,28 +1807,28 @@ function Invoke-ManagedInstaller {
                 $InstallDisposition = 'skipped'
                 $conflictLabel = Get-InstallerConflictLabel -Conflict $conflictState
                 if ($conflictLabel) {
-                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Conflicto 1638 resuelto. Ya existe una version valida de $conflictLabel."
+                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Conflict 1638 resolved. A valid version is already installed for $conflictLabel."
                 } else {
-                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Conflicto 1638 resuelto. Ya existe una version valida instalada."
+                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Conflict 1638 resolved. A valid version is already installed."
                 }
                 return [pscustomobject]@{ Status = 'skipped'; ExitCode = 1638 }
             }
 
             if ($conflictState.CanAutoUninstall) {
                 $conflictLabel = Get-InstallerConflictLabel -Conflict $conflictState
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Se detecto una version anterior que bloquea la actualizacion ($conflictLabel). Desinstalando y reintentando..."
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: An older version is blocking the update ($conflictLabel). Uninstalling and retrying..."
                 Wait-InstallerExecutionIdle
                 $uninstallArgs = "/x $($conflictState.Match.ProductCode) REBOOT=ReallySuppress /qn"
                 $uninstallProcess = Start-Process -FilePath 'msiexec.exe' -ArgumentList $uninstallArgs -Wait -NoNewWindow -PassThru
                 $lastExitCode = $uninstallProcess.ExitCode
                 Reset-InstalledApplicationEntriesCache
                 if ($uninstallProcess.ExitCode -eq 1618) {
-                    $lastFailureMessage = 'desinstalador devolvio 1618: otra instalacion en curso'
-                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: $lastFailureMessage."
+                    $lastFailureMessage = 'uninstaller returned 1618: another installation is running'
+                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: $lastFailureMessage."
                     continue
                 }
                 if ($uninstallProcess.ExitCode -notin @(0, 3010, 1641, 1605)) {
-                    throw "desinstalador salio con codigo $($uninstallProcess.ExitCode)"
+                    throw "uninstaller exited with code $($uninstallProcess.ExitCode)"
                 }
 
                 Start-Sleep -Seconds 5
@@ -1842,46 +1842,46 @@ function Invoke-ManagedInstaller {
                         return [pscustomobject]@{ Status = 'success'; ExitCode = $retryProcess.ExitCode; Attempts = $attempt; Retried = $true }
                     }
 
-                    $lastFailureMessage = "instalador finalizo con codigo $($retryProcess.ExitCode) tras resolver el conflicto 1638, pero no se pudo confirmar la instalacion real"
-                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: $lastFailureMessage."
+                    $lastFailureMessage = "installer finished with code $($retryProcess.ExitCode) after resolving conflict 1638, but the installation could not be confirmed"
+                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: $lastFailureMessage."
                     continue
                 }
 
                 if (Wait-ManagedInstallerInstalled -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion -MaxAttempts 2 -SleepSeconds 5) {
-                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: El instalador devolvio codigo $($retryProcess.ExitCode) tras resolver el conflicto 1638, pero la app quedo instalada. Se considera correcto."
+                    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: The installer returned code $($retryProcess.ExitCode) after resolving conflict 1638, but the app was installed. Treating this as success."
                     $InstallDisposition = 'installed'
                     return [pscustomobject]@{ Status = 'success'; ExitCode = $retryProcess.ExitCode; Attempts = $attempt; Retried = $true }
                 }
 
-                $lastFailureMessage = "instalador salio con codigo $($retryProcess.ExitCode) tras reintento por conflicto 1638"
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: $lastFailureMessage."
+                $lastFailureMessage = "installer exited with code $($retryProcess.ExitCode) after retrying for conflict 1638"
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: $lastFailureMessage."
                 continue
             }
 
             $conflictLabel = Get-InstallerConflictLabel -Conflict $conflictState
             if ($conflictLabel) {
-                throw "instalador salio con codigo 1638: ya existe otra version instalada ($conflictLabel)"
+                throw "installer exited with code 1638: another version is already installed ($conflictLabel)"
             }
-            throw 'instalador salio con codigo 1638: ya existe otra version instalada'
+            throw 'installer exited with code 1638: another version is already installed'
         }
 
         if (Wait-ManagedInstallerInstalled -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion -MaxAttempts 2 -SleepSeconds 5) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: El instalador devolvio codigo $($process.ExitCode), pero la app quedo instalada. Se considera correcto."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: The installer returned code $($process.ExitCode), but the app was installed. Treating this as success."
             $InstallDisposition = 'installed'
             return [pscustomobject]@{ Status = 'success'; ExitCode = $process.ExitCode; Attempts = $attempt; Retried = ($attempt -gt 1) }
         }
 
-        $lastFailureMessage = "instalador salio con codigo $($process.ExitCode)"
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: $lastFailureMessage."
+        $lastFailureMessage = "installer exited with code $($process.ExitCode)"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: $lastFailureMessage."
     }
 
     if (-not $lastFailureMessage) {
-        $lastFailureMessage = 'instalador no pudo completarse'
+        $lastFailureMessage = 'installer could not complete'
     }
     if ($null -ne $lastExitCode) {
-        throw "$lastFailureMessage tras $ManagedInstallerMaxAttempts intentos (ultimo codigo: $lastExitCode)"
+        throw "$lastFailureMessage after $ManagedInstallerMaxAttempts attempts (last code: $lastExitCode)"
     }
-    throw "$lastFailureMessage tras $ManagedInstallerMaxAttempts intentos"
+    throw "$lastFailureMessage after $ManagedInstallerMaxAttempts attempts"
 }
 `.trim();
 }
@@ -2196,7 +2196,7 @@ function buildDependencyWaitSnippet(cfg) {
 # ── Esperar a que termine la dependencia (${safeName}) ───────────────────────
 $DepName = '${psSingleQuote(safeName)}'
 if ($ADDMDedicatedLogging) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Dependencia '$DepName' no usa tracker local en modo dedicado; se continua sin escribir residuos."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Dependency '$DepName' does not use a local tracker in dedicated mode; continuing without writing local state."
 } else {
 $DepTracker = "$LogDir\\Tracker_$DepName.json"
 $DepTimeoutSec = ${timeoutMin * 60}
@@ -2213,18 +2213,18 @@ while (((Get-Date) - $DepStart).TotalSeconds -lt $DepTimeoutSec) {
     Start-Sleep -Seconds 30
 }
 if (-not $DepReady) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Dependencia '$DepName' no confirmada tras $DepTimeoutSec s."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Dependency '$DepName' not confirmed after $DepTimeoutSec seconds."
     if ($DepBehavior -eq 'fail') {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Abortando instalacion por dependencia no satisfecha."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Aborting installation because a dependency is not satisfied."
         Stop-Transcript -ErrorAction SilentlyContinue
         exit 1
     } else {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Se salta esta instalacion hasta que la dependencia termine."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Skipping this installation until the dependency finishes."
         Stop-Transcript -ErrorAction SilentlyContinue
         exit 0
     }
 }
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Dependencia '$DepName' lista."
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Dependency '$DepName' is ready."
 }
 `.trim();
 }
@@ -2314,7 +2314,7 @@ function getRemoteScriptLoggingLogic() {
     '        }',
     '        if ($RemoteLogState.ApiBaseUrl -and $RemoteLogState.ApiKey) { $RemoteLogState.Enabled = $true }',
     '    } catch {',
-    '        Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] AVISO: logging remoto no inicializado - $_"',
+    '        Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] WARNING: remote logging is not initialized - $_"',
     '    }',
     '}',
     'function Send-AppDeployLogBatch {',
@@ -2361,7 +2361,7 @@ function getLocalCachingLogic(filter = "\\.(exe|msi)$", notifyUser = false, appD
   const detectionCall = detectionFn ? `
 # ── Detección de instalación previa (regla definida por el usuario) ─────────
 if (Test-AppInstalled) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Regla de deteccion confirma app ya instalada."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Detection rule confirms that the app is already installed."
     Save-AppDeployTracker -Payload @{ version = $CurrentVersion; hash = $CurrentHash; installedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'success'; method = 'detection-rule' }
     Send-AppDeployLog -Level "info" -Source "install" -Message "install_skipped" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; reason = "detection-rule" }
     Stop-Transcript -ErrorAction SilentlyContinue
@@ -2387,9 +2387,9 @@ if (Test-AppInstalled) {
     '',
     'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ===== AppDeploy Manager ============================="',
     'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] App     : $NombreApp"',
-    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Equipo  : $env:COMPUTERNAME"',
-    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Usuario : $env:USERNAME"',
-    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Fuente  : $PSScriptRoot"',
+    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Computer: $env:COMPUTERNAME"',
+    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] User    : $env:USERNAME"',
+    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Source  : $PSScriptRoot"',
     'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ====================================================="',
     '',
     '$TrackerFile = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Tracker_$NombreApp.json" }',
@@ -2403,7 +2403,7 @@ if (Test-AppInstalled) {
     '# ── Leer manifiesto ─────────────────────────────────────────────────────',
     '$VersionFile = Join-Path $PSScriptRoot "version.json"',
     'if (-not (Test-Path $VersionFile)) {',
-    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] OMITIDO: No se encontro version.json en $PSScriptRoot"',
+    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] SKIPPED: version.json was not found in $PSScriptRoot"',
     '    Stop-Transcript -ErrorAction SilentlyContinue',
     '    exit 0',
     '}',
@@ -2413,7 +2413,7 @@ if (Test-AppInstalled) {
     '    $CurrentVersion = $Manifest.version',
     '    $PrimaryInstallerName = [string]($Manifest.primaryInstallerName)',
     '} catch {',
-    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR: version.json corrupto - $_"',
+    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR: corrupt version.json - $_"',
     '    Stop-Transcript -ErrorAction SilentlyContinue',
     '    exit 1',
     '}',
@@ -2429,7 +2429,7 @@ if (Test-AppInstalled) {
     '    try {',
     '        $t = Get-Content -LiteralPath $TrackerFile -Raw | ConvertFrom-Json',
     '        if ($t.hash -eq $CurrentHash -and $t.result -eq \'success\') {',
-    '            Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] OMITIDO: Ya instalado (v$($t.version), hash coincide)"',
+    '            Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] SKIPPED: Already installed (v$($t.version), matching hash)"',
     '            Send-AppDeployLog -Level "info" -Source "install" -Message "install_skipped" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; reason = "tracker-success" }',
     '            Stop-Transcript -ErrorAction SilentlyContinue',
     '            exit 0',
@@ -2440,22 +2440,22 @@ if (Test-AppInstalled) {
     '                try { $PreviousFailureCount = [Math]::Max([int]$t.retryCount, 1) } catch { $PreviousFailureCount = 1 }',
     '            }',
     '            if ($PreviousFailureCount -ge $ManagedInstallerMaxAttempts) {',
-    '                Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] OMITIDO: La instalacion ya fallo $PreviousFailureCount veces con este mismo hash. Actualiza la app o revisa el instalador para reiniciar los intentos."',
+    '                Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] SKIPPED: Installation has failed $PreviousFailureCount times with this hash. Update the app or review the installer before resetting retries."',
     '                Send-AppDeployLog -Level "warn" -Source "install" -Message "install_skipped" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; reason = "max-retries"; retryCount = $PreviousFailureCount }',
     '                Stop-Transcript -ErrorAction SilentlyContinue',
     '                exit 0',
     '            }',
     '            $TrackerRetryBase = $PreviousFailureCount',
-    '            Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] AVISO: La instalacion fallo previamente con este hash (intento $($PreviousFailureCount + 1)/$ManagedInstallerMaxAttempts). Se volvera a intentar."',
+    '            Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] WARNING: Installation previously failed with this hash (attempt $($PreviousFailureCount + 1)/$ManagedInstallerMaxAttempts). Retrying."',
     '        }',
-    '        Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Hash anterior: $($t.hash) - actualizando a $CurrentHash"',
+    '        Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Previous hash: $($t.hash) - updating to $CurrentHash"',
     '    } catch {',
-    '        Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] AVISO: Tracker corrupto, reinstalando"',
+    '        Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] WARNING: Corrupt tracker; reinstalling"',
     '    }',
     '}',
     '',
     '# ── Localizar instalador en share ────────────────────────────────────────',
-    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Buscando instalador en share..."',
+    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Looking for the installer on the share..."',
     '$InstaladorRed = $null',
     'if ($PrimaryInstallerName) {',
     '    $PrimaryInstallerPath = Join-Path -Path $PSScriptRoot -ChildPath $PrimaryInstallerName',
@@ -2469,7 +2469,7 @@ if (Test-AppInstalled) {
     '                     Select-Object -First 1',
     '}',
     'if (-not $InstaladorRed) {',
-    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR: No se encontro instalador (' + safeFilter + ') en $PSScriptRoot"',
+    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR: Installer not found (' + safeFilter + ') in $PSScriptRoot"',
     '    if (Test-Path $VersionFile) {',
     '        Save-AppDeployTracker -Payload @{ hash = $CurrentHash; version = $CurrentVersion; failedAt = (Get-Date).ToString(\'o\'); computer = $env:COMPUTERNAME; result = \'failed\'; retryCount = ($TrackerRetryBase + 1); error = \'Installer not found in share\' }',
     '    }',
@@ -2477,17 +2477,17 @@ if (Test-AppInstalled) {
     '    Stop-Transcript -ErrorAction SilentlyContinue',
     '    exit 1',
     '}',
-    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Instalador: $($InstaladorRed.Name) ($([Math]::Round($InstaladorRed.Length/1MB,1)) MB)"',
+    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Installer: $($InstaladorRed.Name) ($([Math]::Round($InstaladorRed.Length/1MB,1)) MB)"',
     '',
     '# ── Copiar a cache local ─────────────────────────────────────────────────',
     '$CacheDir = "C:\\Temp\\Deploy\\$NombreApp"',
-    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Copiando a cache: $CacheDir"',
+    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Copying to cache: $CacheDir"',
     'try {',
     '    if (-not (Test-Path $CacheDir)) { New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null }',
     '    Copy-Item -Path "$PSScriptRoot\\*" -Destination $CacheDir -Recurse -Force -ErrorAction Stop',
-    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Copia completada."',
+    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Copy completed."',
     '} catch {',
-    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR copiando desde share: $_"',
+    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR copying from share: $_"',
     '    Send-AppDeployLog -Level "error" -Source "install" -Message "install_failed" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; error = $_.ToString(); stage = "copy-from-share" }',
     '    Stop-Transcript -ErrorAction SilentlyContinue',
     '    exit 1',
@@ -2507,12 +2507,12 @@ if (Test-AppInstalled) {
     '                  Select-Object -First 1',
     '}',
     'if (-not $Instalador) {',
-    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR: Instalador no encontrado en cache tras la copia"',
+    '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] ERROR: Installer not found in cache after copying"',
     '    Send-AppDeployLog -Level "error" -Source "install" -Message "install_failed" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; error = "Installer not found in cache"; stage = "cache" }',
     '    Stop-Transcript -ErrorAction SilentlyContinue',
     '    exit 1',
     '}',
-    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Ejecutando instalacion..."',
+    'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Running installation..."',
     '# NOTA: $PSScriptRoot sigue apuntando al share (solo lectura). Usar $CacheDir para rutas locales.',
     notifyPrefix,
     notifyBefore,
@@ -2533,9 +2533,9 @@ function getTrackerSaveLogic(notifyUser = false, useSnapshotDiff = false) {
   return `
     # ── Exito ──────────────────────────────────────────────────────────
     if ($InstallDisposition -eq 'skipped') {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Instalador no ejecutado; ya existia una version valida para $NombreApp."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Installer skipped; a valid version was already installed for $NombreApp."
     } else {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp instalado correctamente (v$CurrentVersion)"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp installed successfully (v$CurrentVersion)"
     }
 ${notifyAfter}
     ${useSnapshotDiff ? `$_tp = @{ hash = $CurrentHash; version = $CurrentVersion; installedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'success' }
@@ -2546,7 +2546,7 @@ ${notifyAfter}
 
 } catch {
     # ── Error ──────────────────────────────────────────────────────────
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Fallo instalando $NombreApp - $_"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Failed to install $NombreApp - $_"
     Save-AppDeployTracker -Payload @{ hash = $CurrentHash; version = $CurrentVersion; failedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'failed'; retryCount = ($TrackerRetryBase + 1); error = $_.ToString() }
     Send-AppDeployLog -Level "error" -Source "install" -Message "install_failed" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; retryCount = ($TrackerRetryBase + 1); error = $_.ToString() }
     Invoke-DeployCacheCleanupWithFallback -CacheDir $CacheDir -MarkerPath $CleanupMarkerPath | Out-Null
@@ -2589,7 +2589,7 @@ try {
             if ($newKeys.Count -gt 0) {
                 $DetectedProductCode = $newKeys[0]
                 $DetectedDisplayName = $afterSnap[$DetectedProductCode]
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ProductCode detectado post-instalacion: $DetectedProductCode ($DetectedDisplayName)"
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ProductCode detected after installation: $DetectedProductCode ($DetectedDisplayName)"
             }
         }
     }
@@ -2817,20 +2817,20 @@ try {
     if ($InstallDisposition -ne 'skipped') {
         $wazuhSvc = Get-Service -Name 'WazuhSvc' -ErrorAction SilentlyContinue
         if ($null -eq $wazuhSvc) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Servicio WazuhSvc no encontrado. Puede requerir reinicio."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: WazuhSvc service not found. A reboot may be required."
         } elseif ($wazuhSvc.Status -ne 'Running') {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Iniciando servicio WazuhSvc..."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting WazuhSvc service..."
             Set-Service -Name 'WazuhSvc' -StartupType Automatic -ErrorAction SilentlyContinue
             Start-Service -Name 'WazuhSvc' -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 4
             $svcStatus = (Get-Service -Name 'WazuhSvc' -ErrorAction SilentlyContinue).Status
             if ($svcStatus -eq 'Running') {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: WazuhSvc iniciado correctamente."
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: WazuhSvc started successfully."
             } else {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: WazuhSvc no se pudo iniciar (estado: $svcStatus). Verifica manualmente."
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Could not start WazuhSvc (status: $svcStatus). Check manually."
             }
         } else {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WazuhSvc ya en ejecucion."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WazuhSvc is already running."
         }
     }
 ${getTrackerSaveLogic(notify)}
@@ -3161,8 +3161,8 @@ if ($LogFile) { Start-Transcript -Path $LogFile -Force -ErrorAction SilentlyCont
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ===== AppDeploy Manager ============================="
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] App     : $NombreApp [winget: $wingetId | source: $wingetSource]"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Equipo  : $env:COMPUTERNAME"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Usuario : $env:USERNAME"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Computer: $env:COMPUTERNAME"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] User    : $env:USERNAME"
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ====================================================="
 
 $TrackerFile = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Tracker_$NombreApp.json" }
@@ -3184,7 +3184,7 @@ function Clear-UserWingetArtifacts {
         } catch {}
     }
     if (-not $Quiet) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] INFO: Artefactos user-scope limpiados para $NombreApp"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] INFO: User-scope artifacts cleaned for $NombreApp"
     }
 }
 
@@ -3235,7 +3235,7 @@ if (-not $Winget) {
 }
 
 if (-not $Winget) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: winget.exe no encontrado. Requiere Windows 10 21H2+ con App Installer (Microsoft Store)."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: winget.exe not found. Windows 10 21H2+ with App Installer (Microsoft Store) is required."
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 1
 }
@@ -3293,21 +3293,21 @@ if ($TrackerFile -and (Test-Path -LiteralPath $TrackerFile)) {
             $installedNow = Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource -MaxAttempts 2 -SleepSeconds 2
             if ($installedNow) {
                 Clear-UserWingetArtifacts -Quiet
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Ya instalado (v$CurrentVersion, estado real verificado)"
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Already installed (v$CurrentVersion, installation verified)"
                 Stop-Transcript -ErrorAction SilentlyContinue
                 exit 0
             }
 
             if ($t.result -eq 'scheduled' -and (Test-WingetUserTaskPending)) {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Instalacion programada pendiente para $wingetId"
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Scheduled installation pending for $wingetId"
                 Stop-Transcript -ErrorAction SilentlyContinue
                 exit 0
             }
 
             if ($t.result -eq 'success') {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Tracker marcaba exito, pero $wingetId no aparece instalado. Se reintentara."
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Tracker reported success, but $wingetId is not installed. Retrying."
             } else {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Tracker marcaba instalacion programada, pero no hay app ni tarea pendiente. Se reintentara."
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Tracker reported a scheduled installation, but neither the app nor a pending task exists. Retrying."
             }
             Clear-UserWingetArtifacts -Quiet
         }
@@ -3330,15 +3330,15 @@ $WingetNoScope = @(-1978335160, -1978335215, -1978335216)  # no machine-scope in
 $WingetUserOnly = @(-1978335146, -1978335215, -1978335216) # app solo usuario → instalar via tarea programada
 # MS Store apps are user-scope only — skip machine-scope attempt
 $IsMsStore = ($wingetSource -eq 'msstore')
-if ($IsMsStore) { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] INFO: Fuente MS Store — scope machine no aplicable, instalacion en scope de usuario" }
+if ($IsMsStore) { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] INFO: MS Store source: machine scope does not apply; installing in user scope" }
 try {
     $packageInstalled = $false
     if (-not $IsMsStore) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Ejecutando: winget install --id $wingetId --source $wingetSource --scope machine"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Running: winget install --id $wingetId --source $wingetSource --scope machine"
         & $Winget install --id "$wingetId" --source "$wingetSource" --silent --accept-package-agreements --accept-source-agreements --scope machine 2>&1 | Out-Null
         $ec = $LASTEXITCODE
         if ($ec -in $WingetNoScope) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: --scope machine no soportado (codigo $ec). Reintentando sin --scope..."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: --scope machine is unsupported (code $ec). Retrying without --scope..."
             & $Winget install --id "$wingetId" --source "$wingetSource" --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
             $ec = $LASTEXITCODE
         }
@@ -3348,26 +3348,26 @@ try {
     if ($ec -in $WingetSuccess) {
         $packageInstalled = Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource
         if (-not $packageInstalled) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: winget devolvio codigo de exito ($ec), pero $wingetId no quedo detectable. Se intentara resolver en contexto de usuario."
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: winget returned success ($ec), but $wingetId could not be detected. Trying the user context."
             $ec = -1
         }
     }
     if ($ec -notin $WingetSuccess) {
         # Último intento: --scope user (apps solo usuario)
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Reintentando con --scope user (app solo usuario, codigo $ec)..."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Retrying with --scope user (user-only app, code $ec)..."
         & $Winget install --id "$wingetId" --source "$wingetSource" --silent --accept-package-agreements --accept-source-agreements --scope user 2>&1 | Out-Null
         $ec = $LASTEXITCODE
         if ($ec -in $WingetSuccess) {
             $packageInstalled = Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource -MaxAttempts 3 -SleepSeconds 2
             if (-not $packageInstalled) {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: winget devolvio codigo de exito en --scope user ($ec), pero la app no quedo detectable en SYSTEM. Se programara la instalacion en la siguiente sesion."
+                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: winget returned success with --scope user ($ec), but SYSTEM could not detect the app. Scheduling installation at the next sign-in."
                 $ec = -1
             }
         }
     }
     if ($ec -notin $WingetSuccess) {
         # App solo usuario que no puede instalarse en contexto SYSTEM → programar tarea de usuario
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: App de usuario ($wingetId). Creando tarea programada para instalacion en proximo inicio de sesion..."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: User app ($wingetId). Creating a scheduled task to install at the next sign-in..."
         $taskName = $UserTaskName
         try {
             Clear-UserWingetArtifacts -Quiet
@@ -3494,8 +3494,8 @@ shell.Run "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass
             $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\\INTERACTIVE" -LogonType Interactive -RunLevel Limited
             Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger \`
                 -Settings $settings -Principal $principal \`
-                -Description "Instalacion de $NombreApp vía AD Deploy Manager" -Force -ErrorAction Stop | Out-Null
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Tarea programada '$taskName' creada - se instalara en el proximo inicio de sesion del usuario"
+                -Description "Installation of $NombreApp via AD Deploy Manager" -Force -ErrorAction Stop | Out-Null
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Scheduled task '$taskName' created; installation will run at the next user sign-in"
             if ($TrackerFile) {
                 @{ version = $CurrentVersion; scheduledAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'scheduled'; method = 'winget-usertask'; wingetId = "$wingetId" } |
                     ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8
@@ -3503,15 +3503,15 @@ shell.Run "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass
             Stop-Transcript -ErrorAction SilentlyContinue
             exit 0
         } catch {
-            throw "No se pudo crear la tarea programada '$taskName': $($_.Exception.Message)"
+            throw "Could not create scheduled task '$taskName': $($_.Exception.Message)"
         }
     }
 
     if (-not $packageInstalled) {
-        throw "winget finalizo sin error bloqueante, pero no se pudo confirmar la instalacion real de $wingetId"
+        throw "winget completed without a blocking error, but the installation could not be confirmed for $wingetId"
     }
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp instalado correctamente (v$CurrentVersion)"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp installed successfully (v$CurrentVersion)"
     Clear-UserWingetArtifacts -Quiet
 ${notifyAfter}
     if ($TrackerFile) {
@@ -3519,7 +3519,7 @@ ${notifyAfter}
             ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8
     }
 } catch {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Fallo instalando $NombreApp - $_"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Failed to install $NombreApp - $_"
     if ($TrackerFile) {
         @{ version = $CurrentVersion; failedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'failed'; error = $_.ToString() } |
             ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8
@@ -3562,7 +3562,7 @@ function generateODT(cfg) {
 
   return `# =========================================================================
 # MICROSOFT OFFICE ODT - DROP & RUN
-# Producto: ${productId}  Canal: ${channel}  Idioma: ${language}
+# Product: ${productId}  Canal: ${channel}  Idioma: ${language}
 # Versión: ${version}
 # Generado: ${new Date().toISOString()}
 # =========================================================================
@@ -3585,9 +3585,9 @@ if ($LogFile) { Start-Transcript -Path $LogFile -Force -ErrorAction SilentlyCont
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ===== AppDeploy Manager ============================="
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] App     : $NombreApp (Office ODT)"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Producto: ${productId} | Canal: ${channel} | Idioma: ${language} | Arq: ${arch}"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Equipo  : $env:COMPUTERNAME"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Usuario : $env:USERNAME"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Product: ${productId} | Channel: ${channel} | Language: ${language} | Architecture: ${arch}"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Computer: $env:COMPUTERNAME"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] User    : $env:USERNAME"
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ====================================================="
 
 $TrackerFile = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Tracker_$NombreApp.json" }
@@ -3601,7 +3601,7 @@ function Save-AppDeployTracker {
 $CurrentVersion = "${version}"
 $VersionFile = Join-Path $PSScriptRoot "version.json"
 if (-not (Test-Path $VersionFile)) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: No se encontro version.json en $PSScriptRoot"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: version.json was not found in $PSScriptRoot"
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 0
 }
@@ -3610,7 +3610,7 @@ try {
     $CurrentHash    = $Manifest.hash
     $CurrentVersion = $Manifest.version
 } catch {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: version.json corrupto - $_"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: corrupt version.json - $_"
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 1
 }
@@ -3638,7 +3638,7 @@ if ($ClickToRunConfig -and $ClickToRunConfig.ProductReleaseIds) {
 $TargetOfficeInstalled = $InstalledOfficeProducts -contains "${productId}"
 if ($TargetOfficeInstalled -or $OfficeInstalled) {
     $OfficeDetectedName = if ($TargetOfficeInstalled) { "${productId}" } else { $OfficeInstalled.DisplayName }
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OMITIDO: Office ya instalado - $OfficeDetectedName"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Office is already installed - $OfficeDetectedName"
     Save-AppDeployTracker -Payload @{ version = $CurrentVersion; hash = $CurrentHash; installedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'success'; method = 'odt-detected'; product = "${productId}" }
     Stop-Transcript -ErrorAction SilentlyContinue
     exit 0
@@ -3649,8 +3649,8 @@ if ($TargetOfficeInstalled -or $OfficeInstalled) {
 $OdtSetup = Join-Path $PSScriptRoot "setup.exe"
 
 if (-not (Test-Path $OdtSetup)) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] setup.exe no encontrado en share. Descargando Office Deployment Tool..."
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] RECOMENDADO: coloca setup.exe del ODT en $PSScriptRoot para evitar esta descarga."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] setup.exe not found on the share. Downloading Office Deployment Tool..."
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] RECOMMENDED: place ODT setup.exe in $PSScriptRoot to avoid this download."
     $OdtTemp    = "$env:TEMP\\odt_installer_$(Get-Random).exe"
     $OdtExtract = "$env:TEMP\\odt_$(Get-Random)"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -3665,9 +3665,9 @@ if (-not (Test-Path $OdtSetup)) {
                 New-Item -ItemType Directory -Path $OdtExtract -Force | Out-Null
                 Start-Process $OdtTemp -ArgumentList "/quiet /extract:\`"$OdtExtract\`"" -Wait -NoNewWindow
                 $candidate = Join-Path $OdtExtract "setup.exe"
-                if (Test-Path $candidate) { $OdtSetup = $candidate; Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ODT listo via FWLink: $OdtSetup" }
-            } else { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: FWLink devolvio archivo invalido (probablemente redireccion)" }
-        } catch { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Intento FWLink fallido: $_" }
+                if (Test-Path $candidate) { $OdtSetup = $candidate; Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ODT ready via FWLink: $OdtSetup" }
+            } else { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: FWLink returned an invalid file (probably a redirect)" }
+        } catch { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: FWLink attempt failed: $_" }
     }
 
     # ── Intento 2: URL de fallback conocida ──
@@ -3683,14 +3683,14 @@ if (-not (Test-Path $OdtSetup)) {
                 New-Item -ItemType Directory -Path $OdtExtract2 -Force | Out-Null
                 Start-Process $OdtTemp2 -ArgumentList "/quiet /extract:\`"$OdtExtract2\`"" -Wait -NoNewWindow
                 $candidate2 = Join-Path $OdtExtract2 "setup.exe"
-                if (Test-Path $candidate2) { $OdtSetup = $candidate2; Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ODT listo via URL fallback: $OdtSetup" }
+                if (Test-Path $candidate2) { $OdtSetup = $candidate2; Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ODT ready via fallback URL: $OdtSetup" }
             }
-        } catch { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] AVISO: Intento URL fallback fallido: $_" }
+        } catch { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Fallback URL attempt failed: $_" }
     }
 
     if (-not (Test-Path $OdtSetup -ErrorAction SilentlyContinue)) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: No se pudo descargar el ODT por ninguna via"
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SOLUCION: Coloca setup.exe del ODT manualmente en $PSScriptRoot"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Could not download ODT using any method"
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SOLUTION: manually place ODT setup.exe in $PSScriptRoot"
         Stop-Transcript -ErrorAction SilentlyContinue
         exit 1
     }
@@ -3716,21 +3716,21 @@ $OfficeLogConfig
 
 $XmlPath = "$env:TEMP\\office_config_${productId}_$(Get-Random).xml"
 $XmlContent | Set-Content -Path $XmlPath -Encoding UTF8
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] XML generado: $XmlPath"
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] XML generated: $XmlPath"
 ${notifyPrefix}
 ${notifyBefore}
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Instalando Office. AVISO: Este proceso puede tardar entre 20 y 60 minutos."
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Installing Office. WARNING: this process may take 20 to 60 minutes."
 
 # ── Instalar ─────────────────────────────────────────────
 try {
     Start-Process -FilePath $OdtSetup -ArgumentList "/configure \`"$XmlPath\`"" -Wait -NoNewWindow
-    if ($LASTEXITCODE -ne 0) { throw "ODT setup.exe salio con codigo $LASTEXITCODE" }
+    if ($LASTEXITCODE -ne 0) { throw "ODT setup.exe exited with code $LASTEXITCODE" }
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp instalado correctamente (v$CurrentVersion)"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp installed successfully (v$CurrentVersion)"
 ${notifyAfter}
     Save-AppDeployTracker -Payload @{ version = $CurrentVersion; hash = $CurrentHash; installedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'success'; method = 'odt'; product = "${productId}" }
 } catch {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Fallo instalando $NombreApp - $_"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Failed to install $NombreApp - $_"
     Save-AppDeployTracker -Payload @{ version = $CurrentVersion; hash = $CurrentHash; failedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'failed'; error = $_.ToString() }
 }
 Stop-Transcript -ErrorAction SilentlyContinue

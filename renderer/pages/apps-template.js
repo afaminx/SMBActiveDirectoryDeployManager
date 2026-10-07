@@ -706,7 +706,7 @@ const AppsTemplateModule = {
       state.isSavingTemplate = true;
       state.installerStatus = {
         type: 'info',
-        message: 'Eliminando instalador del share...'
+        message: 'Deleting installer from the share...'
       };
       state.focusTemplateNameOnRender = false;
       this.rerenderTemplateManager(state, onClose);
@@ -716,9 +716,9 @@ const AppsTemplateModule = {
           state.isSavingTemplate = false;
           state.installerStatus = {
             type: 'error',
-            message: `No se pudo eliminar el instalador: ${deleteResult?.error || 'Error desconocido'}`
+            message: `Could not delete the installer: ${deleteResult?.error || 'Unknown error'}`
           };
-          App.toast(`Error: ${deleteResult?.error || 'No se pudo eliminar el instalador'}`, 'error');
+          App.toast(`Error: ${deleteResult?.error || 'Could not delete the installer'}`, 'error');
           this.rerenderTemplateManager(state, onClose);
           return;
         }
@@ -727,25 +727,25 @@ const AppsTemplateModule = {
         delete nextTemplateInstallers[activeId];
         const saveConfigResult = await window.api.config.set({ templateInstallers: nextTemplateInstallers });
         if (saveConfigResult?.success === false) {
-          throw new Error(saveConfigResult.error || 'No se pudo actualizar la configuración');
+          throw new Error(saveConfigResult.error || 'Could not update configuration');
         }
 
         state.templateInstallers = nextTemplateInstallers;
         state.isSavingTemplate = false;
         state.installerStatus = {
           type: 'success',
-          message: 'Instalador preconfigurado eliminado.'
+          message: 'Preconfigured installer deleted.'
         };
         state.installerSaved = !!state.selectedBuiltIn;
-        App.toast('Instalador preconfigurado eliminado.', 'success');
+        App.toast('Preconfigured installer deleted.', 'success');
         this.rerenderTemplateManager(state, onClose);
       } catch (err) {
         state.isSavingTemplate = false;
         state.installerStatus = {
           type: 'error',
-          message: `No se pudo eliminar el instalador: ${err?.message || 'Error desconocido'}`
+          message: `Could not delete the installer: ${err?.message || 'Unknown error'}`
         };
-        App.toast(`Error: ${err?.message || 'No se pudo eliminar el instalador'}`, 'error');
+        App.toast(`Error: ${err?.message || 'Could not delete the installer'}`, 'error');
         this.rerenderTemplateManager(state, onClose);
       }
     });
@@ -764,13 +764,13 @@ const AppsTemplateModule = {
         || document.getElementById('tmpl-installer-path')?.value?.trim()
         || '';
       if (!localPath) {
-        App.toast('Selecciona un instalador primero', 'warning');
+        App.toast('Select an installer first', 'warning');
         return;
       }
       state.isSavingTemplate = true;
       state.installerStatus = {
         type: 'info',
-        message: 'Copiando instalador al share, espera un momento...'
+        message: 'Copying installer to the share. Please wait...'
       };
       state.focusTemplateNameOnRender = false;
       this.rerenderTemplateManager(state, onClose);
@@ -780,34 +780,34 @@ const AppsTemplateModule = {
           state.isSavingTemplate = false;
           state.installerStatus = {
             type: 'error',
-            message: `Error al copiar el instalador: ${result?.error || 'No se pudo copiar al share'}`
+            message: `Could not copy the installer: ${result?.error || 'Could not copy to the share'}`
           };
-          App.toast(`Error: ${result?.error || 'No se pudo copiar al share'}`, 'error');
+          App.toast(`Error: ${result?.error || 'Could not copy to the share'}`, 'error');
           this.rerenderTemplateManager(state, onClose);
           return;
         }
         state.templateInstallers = { ...state.templateInstallers, [activeId]: result.sharePath };
         const saveConfigResult = await window.api.config.set({ templateInstallers: state.templateInstallers });
         if (saveConfigResult?.success === false) {
-          throw new Error(saveConfigResult.error || 'No se pudo actualizar la configuración');
+          throw new Error(saveConfigResult.error || 'Could not update configuration');
         }
         this.clearPendingTemplateInstallerPath(state);
         state.installerSaved = true;
         state.isSavingTemplate = false;
         state.installerStatus = {
           type: 'success',
-          message: 'Instalador guardado en el share.'
+          message: 'Installer saved to the share.'
         };
-        App.toast('Instalador guardado en el share', 'success');
+        App.toast('Installer saved to the share', 'success');
         state.focusTemplateNameOnRender = false;
         this.rerenderTemplateManager(state, onClose);
       } catch (err) {
         state.isSavingTemplate = false;
         state.installerStatus = {
           type: 'error',
-          message: `Error al copiar el instalador: ${err?.message || 'No se pudo copiar al share'}`
+          message: `Could not copy the installer: ${err?.message || 'Could not copy to the share'}`
         };
-        App.toast(`Error: ${err?.message || 'No se pudo copiar al share'}`, 'error');
+        App.toast(`Error: ${err?.message || 'Could not copy to the share'}`, 'error');
         this.rerenderTemplateManager(state, onClose);
       }
     });
@@ -969,9 +969,9 @@ const AppsTemplateModule = {
         state.isSavingTemplate = false;
         state.installerStatus = {
           type: 'error',
-          message: `No se pudo guardar la plantilla: ${err?.message || 'Error desconocido'}`
+          message: `Could not save the template: ${err?.message || 'Unknown error'}`
         };
-        App.toast(t('apps.customTemplateSaveError', 'No se pudo guardar la plantilla.'), 'error');
+        App.toast(t('apps.customTemplateSaveError', 'Could not save the template.'), 'error');
         this.rerenderTemplateManager(state, onClose);
         return;
       }
@@ -980,9 +980,9 @@ const AppsTemplateModule = {
         state.isSavingTemplate = false;
         state.installerStatus = {
           type: 'error',
-          message: 'No se pudo guardar la plantilla.'
+          message: 'Could not save the template.'
         };
-        App.toast(t('apps.customTemplateSaveError', 'No se pudo guardar la plantilla.'), 'error');
+        App.toast(t('apps.customTemplateSaveError', 'Could not save the template.'), 'error');
         this.rerenderTemplateManager(state, onClose);
         return;
       }
@@ -1001,10 +1001,10 @@ const AppsTemplateModule = {
             state.pendingTemplateInstallers = { ...(state.pendingTemplateInstallers || {}) };
             delete state.pendingTemplateInstallers[saved.id];
           } else {
-            installerUploadError = result?.error || 'No se pudo copiar al share';
+            installerUploadError = result?.error || 'Could not copy to the share';
           }
         } catch (err) {
-          installerUploadError = err?.message || 'No se pudo copiar al share';
+          installerUploadError = err?.message || 'Could not copy to the share';
         }
       }
 
@@ -1013,9 +1013,9 @@ const AppsTemplateModule = {
         state.isSavingTemplate = false;
         state.installerStatus = {
           type: 'error',
-          message: `La plantilla se guardó, pero no se pudo actualizar la configuración: ${saveConfigResult.error || 'Error desconocido'}`
+          message: `Template saved, but configuration could not be updated: ${saveConfigResult.error || 'Unknown error'}`
         };
-        App.toast(`Error: ${saveConfigResult.error || 'No se pudo actualizar la configuración'}`, 'error');
+        App.toast(`Error: ${saveConfigResult.error || 'Could not update configuration'}`, 'error');
         this.rerenderTemplateManager(state, onClose);
         return;
       }
@@ -1032,9 +1032,9 @@ const AppsTemplateModule = {
       if (installerUploadError) {
         state.installerStatus = {
           type: 'error',
-          message: `Plantilla guardada, pero no se pudo subir el instalador: ${installerUploadError}`
+          message: `Template saved, but the installer could not be uploaded: ${installerUploadError}`
         };
-        App.toast(`Plantilla guardada, pero el instalador no se pudo subir: ${installerUploadError}`, 'warning');
+        App.toast(`Template saved, but the installer could not be uploaded: ${installerUploadError}`, 'warning');
       } else {
         state.installerStatus = {
           type: 'success',

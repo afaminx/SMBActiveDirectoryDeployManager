@@ -6,23 +6,24 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build": "electron-builder --win portable",
-    "build:dir": "electron-builder --win --dir",
-    "build:legacy": "npx electron-packager . \"AD_Deploy_Manager\" --platform=win32 --arch=x64 --electron-version=33.0.0 --out=dist --overwrite",
-    "test": "vitest run",
+    "build": "node build-portable.cjs",
+    "build:dir": "node build-portable.cjs --dir",
+    "test": "node tests/run-tests.cjs",
     "test:watch": "vitest"
   },
   "build": {
     "appId": "dev.andresgp.addeploymanager",
     "productName": "AD Deploy Manager",
-    
     "directories": {
-      "output": "dist_portable",
+      "output": "codex/bin/mod-rev-1.6",
       "buildResources": "img"
     },
     "compression": "maximum",
     "asar": true,
-    "electronLanguages": ["es", "en-US"],
+    "electronLanguages": [
+      "es",
+      "en-US"
+    ],
     "files": [
       "main.js",
       "preload.js",
@@ -43,7 +44,6 @@
     ],
     "win": {
       "target": "portable"
-      
     },
     "portable": {
       "artifactName": "ADDeployManager-Portable.exe"
@@ -56,5 +56,6 @@
     "electron-builder": "^26.8.1",
     "electron-packager": "^17.1.2",
     "vitest": "^1.0.0"
-  }
+  },
+  "packageManager": "pnpm@11.19.0"
 }

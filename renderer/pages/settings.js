@@ -111,7 +111,7 @@ const SettingsPage = {
             <strong style="color:${App.rsatAvailable ? 'var(--accent-secondary)' : 'var(--accent-danger)'}">
               ${App.rsatAvailable ? 'RSAT Disponible' : 'RSAT No Disponible'}
             </strong>
-            <p class="text-muted text-sm">${App.rsatAvailable ? 'El módulo ActiveDirectory de PowerShell está operativo.' : 'Las funciones de AD están deshabilitadas.'}</p>
+            <p class="text-muted text-sm">${App.rsatAvailable ? 'LDAP está disponible; las operaciones GPO usan el módulo GroupPolicy.' : 'Las funciones de AD están deshabilitadas.'}</p>
           </div>
         </div>
         ${!App.rsatAvailable ? `
@@ -119,9 +119,8 @@ const SettingsPage = {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <div>
               Para habilitar las funciones de Active Directory, instala RSAT ejecutando como Administrador:
-              <code>Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0</code>
-              <p class="mt-sm">Para GPO management, instala también:</p>
               <code>Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code>
+              <p class="mt-sm">Comprueba también LDAP y el DC configurado con Test Conexión AD.</p>
             </div>
           </div>
         ` : ''}
@@ -446,7 +445,7 @@ const SettingsPage = {
     // Auto-provision an ingest key so this workstation can ship logs.
     const prov = await window.api.admin.provisionIngestKey();
     if (!prov.success) {
-      App.toast(`${t('settings.ingestProvisionFailed') || 'No se pudo provisionar la clave de ingesta'}: ${prov.error}`, 'warning');
+      App.toast(`${t('settings.ingestProvisionFailed') || 'Could not provision the ingest key'}: ${prov.error}`, 'warning');
     } else {
       App.toast(t('settings.ingestProvisioned') || 'Clave de ingesta creada', 'success');
     }
@@ -556,7 +555,7 @@ const SettingsPage = {
         'success'
       );
     } catch (err) {
-      App.toast(`${t('settings.regeneratePublishedScriptsError') || 'No se pudieron regenerar los scripts'}: ${err.message}`, 'error');
+      App.toast(`${t('settings.regeneratePublishedScriptsError') || 'Could not regenerate scripts'}: ${err.message}`, 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -808,14 +807,10 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
     });
 
     document.getElementById('btn-test-ad').addEventListener('click', async () => {
-      if (!App.rsatAvailable) {
-        App.toast('RSAT no está disponible. Instálalo primero.', 'warning');
-        return;
-      }
       try {
-        const result = await window.api.ad.getOUs();
+        const result = await window.api.ad.testADConnection();
         if (result.success) {
-          App.toast(`Conexión AD exitosa — ${result.data.length} UOs encontradas`, 'success');
+          App.toast(`LDAP disponible — ${result.data.server} (${result.data.domain})`, 'success');
         } else {
           App.toast('Error AD: ' + result.error, 'error');
         }
@@ -831,10 +826,10 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
         const result = await window.api.saveFile(json, `deploy_manager_backup_${new Date().toISOString().slice(0,10)}.json`);
         if (result.success) {
           await window.api.activity.add('config_export', {});
-          App.toast('Configuración exportada correctamente', 'success');
+          App.toast('Configuration exported successfully', 'success');
         }
       } catch (err) {
-        App.toast('Error al exportar: ' + err.message, 'error');
+        App.toast('Export failed: ' + err.message, 'error');
       }
     });
 
@@ -845,14 +840,14 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
           const importResult = await window.api.importAll(result.data);
           if (importResult.success) {
             await window.api.activity.add('config_import', {});
-            App.toast('Configuración importada correctamente. Recargando...', 'success');
+            App.toast('Configuration imported successfully. Reloading...', 'success');
             setTimeout(() => App.navigate('settings'), 500);
           } else {
-            App.toast('Error al importar: ' + importResult.error, 'error');
+            App.toast('Import failed: ' + importResult.error, 'error');
           }
         }
       } catch (err) {
-        App.toast('Error al importar: ' + err.message, 'error');
+        App.toast('Import failed: ' + err.message, 'error');
       }
     });
   },

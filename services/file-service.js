@@ -15,7 +15,7 @@ const fileService = {
       const myShareId = config.shareId || '';
 
       if (!fs.existsSync(basePath)) {
-        return { success: false, error: `La ruta no existe: ${basePath}`, data: [] };
+        return { success: false, error: `Path does not exist: ${basePath}`, data: [] };
       }
 
       const entries = fs.readdirSync(basePath, { withFileTypes: true });
@@ -90,7 +90,7 @@ const fileService = {
       const { path: dirPath } = resolveNamedSubdirectory(config.networkSharePath, name, 'App');
 
       if (!fs.existsSync(dirPath)) {
-        return { success: false, error: 'Carpeta no encontrada', data: [] };
+        return { success: false, error: 'Folder not found', data: [] };
       }
 
       const files = fs.readdirSync(dirPath).map(f => {

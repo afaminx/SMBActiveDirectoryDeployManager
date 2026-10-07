@@ -375,54 +375,54 @@ const LogsPage = {
     const newVer = ctx.newVersion ? ` → <span class="logs-ctx-ver">v${e(ctx.newVersion)}</span>` : '';
     const errTxt = ctx.error      ? e(String(ctx.error).slice(0, 180)) : '';
 
-    const dispMap = { installed: 'Instalado', skipped: 'Omitido (ya instalado)', pending: 'Instalado', updated: 'Actualizado' };
-    const disp = dispMap[ctx.disposition] || (ctx.disposition ? e(ctx.disposition) : 'Instalado');
+    const dispMap = { installed: 'Installed', skipped: 'Skipped (already installed)', pending: 'Installed', updated: 'Updated' };
+    const disp = dispMap[ctx.disposition] || (ctx.disposition ? e(ctx.disposition) : 'Installed');
 
     const reasonMap = {
-      'tracker-success': 'ya instalado',
-      'detection-rule':  'ya detectado',
-      'max-retries':     `demasiados intentos${ctx.retryCount ? ` (${ctx.retryCount})` : ''}`
+      'tracker-success': 'already installed',
+      'detection-rule':  'already detected',
+      'max-retries':     `too many attempts${ctx.retryCount ? ` (${ctx.retryCount})` : ''}`
     };
     const reason = ctx.reason ? (reasonMap[ctx.reason] || e(ctx.reason)) : '';
 
     const stage = ctx.stage ? ` [${e(ctx.stage)}]` : '';
 
     const map = {
-      install_start:    `Instalando${app ? ': ' + app : ''}${ver}`,
-      install_skipped:  `Omitido${app ? ': ' + app : ''}${ver}${reason ? ` — ${reason}` : ''}`,
+      install_start:    `Installing${app ? ': ' + app : ''}${ver}`,
+      install_skipped:  `Skipped${app ? ': ' + app : ''}${ver}${reason ? ` — ${reason}` : ''}`,
       install_success:  `${disp}${app ? ': ' + app : ''}${ver}`,
-      install_failed:   `Error de instalación${app ? ': ' + app : ''}${ver}${stage}`,
-      uninstall_start:  `Desinstalando${app ? ': ' + app : ''}${ver}`,
-      uninstall_checked:`Verificación desinstalación${app ? ': ' + app : ''}${ver}`,
-      uninstall_success:`Desinstalado${app ? ': ' + app : ''}${ver}`,
-      uninstall_failed: `Error de desinstalación${app ? ': ' + app : ''}${ver}`,
-      gpo_create:       `GPO creada${gpo ? ': ' + gpo : ''}${app ? ' para ' + app : ''}`,
-      gpo_delete:       `GPO eliminada${gpo ? ': ' + gpo : ''}`,
-      script_deploy:    `Script desplegado${app ? ': ' + app : ''}${ver}`,
-      bundle_deploy:    `Bundle desplegado${bundle ? ': ' + bundle : ''}`,
-      bundle_uninstall_prepare: `Desinstalación de bundle${bundle ? ': ' + bundle : ''}`,
-      app_create:       `App creada${app ? ': ' + app : ''}${ver}`,
-      app_update:       `App actualizada${app ? ': ' + app : ''}`,
-      app_delete:       `App eliminada${app ? ': ' + app : ''}`,
-      app_disable:      `App deshabilitada${app ? ': ' + app : ''}`,
-      app_quick_update: `Actualización rápida${app ? ': ' + app : ''}`,
+      install_failed:   `Installation failed${app ? ': ' + app : ''}${ver}${stage}`,
+      uninstall_start:  `Uninstalling${app ? ': ' + app : ''}${ver}`,
+      uninstall_checked:`Uninstall check${app ? ': ' + app : ''}${ver}`,
+      uninstall_success:`Uninstalled${app ? ': ' + app : ''}${ver}`,
+      uninstall_failed: `Uninstall failed${app ? ': ' + app : ''}${ver}`,
+      gpo_create:       `GPO created${gpo ? ': ' + gpo : ''}${app ? ' for ' + app : ''}`,
+      gpo_delete:       `GPO deleted${gpo ? ': ' + gpo : ''}`,
+      script_deploy:    `Script deployed${app ? ': ' + app : ''}${ver}`,
+      bundle_deploy:    `Bundle deployed${bundle ? ': ' + bundle : ''}`,
+      bundle_uninstall_prepare: `Bundle uninstall prepared${bundle ? ': ' + bundle : ''}`,
+      app_create:       `App created${app ? ': ' + app : ''}${ver}`,
+      app_update:       `App updated${app ? ': ' + app : ''}`,
+      app_delete:       `App deleted${app ? ': ' + app : ''}`,
+      app_disable:      `App disabled${app ? ': ' + app : ''}`,
+      app_quick_update: `Quick update${app ? ': ' + app : ''}`,
       app_auto_update:  `Auto-update${app ? ': ' + app : ''}${newVer}`,
-      app_uninstall_prepare: `Desinstalación preparada${app ? ': ' + app : ''}`,
-      bundle_create:    `Bundle creado${bundle ? ': ' + bundle : ''}${ctx.appCount ? ` (${ctx.appCount} apps)` : ''}`,
-      bundle_update:    `Bundle actualizado${bundle ? ': ' + bundle : ''}`,
-      bundle_delete:    `Bundle eliminado`,
-      bundle_disable:   `Bundle deshabilitado${bundle ? ': ' + bundle : ''}`,
-      config_export:    `Configuración exportada`,
-      config_import:    `Configuración importada`,
-      log_backend_enrolled:       `Enrolled en servidor de logs`,
-      log_backend_reconnected:    `Servidor de logs reconectado`,
-      log_backend_offline:        `Servidor de logs no disponible`,
-      log_share_config_published: `Config de logging publicada en share`,
-      ou_external_changes_detected:         `Cambios externos en OU detectados`,
-      app_scripts_regenerated:              `Scripts regenerados${app ? ': ' + app : ''}`,
-      script_update_background_started:     `Actualización de scripts iniciada${ctx.outdatedCount ? ` (${ctx.outdatedCount} apps)` : ''}`,
-      script_update_background_completed:   `Actualización de scripts completada${ctx.updatedCount != null ? ` — ${ctx.updatedCount} actualizadas` : ''}${ctx.failedCount ? `, ${ctx.failedCount} errores` : ''}`,
-      ps_error:                             `Error de PowerShell${ctx.stage ? ` [${e(ctx.stage)}]` : ''}`,
+      app_uninstall_prepare: `Uninstall prepared${app ? ': ' + app : ''}`,
+      bundle_create:    `Bundle created${bundle ? ': ' + bundle : ''}${ctx.appCount ? ` (${ctx.appCount} apps)` : ''}`,
+      bundle_update:    `Bundle updated${bundle ? ': ' + bundle : ''}`,
+      bundle_delete:    `Bundle deleted`,
+      bundle_disable:   `Bundle disabled${bundle ? ': ' + bundle : ''}`,
+      config_export:    `Configuration exported`,
+      config_import:    `Configuration imported`,
+      log_backend_enrolled:       `Enrolled with logging server`,
+      log_backend_reconnected:    `Logging server reconnected`,
+      log_backend_offline:        `Logging server unavailable`,
+      log_share_config_published: `Logging configuration published to share`,
+      ou_external_changes_detected:         `External OU changes detected`,
+      app_scripts_regenerated:              `Scripts regenerated${app ? ': ' + app : ''}`,
+      script_update_background_started:     `Script update started${ctx.outdatedCount ? ` (${ctx.outdatedCount} apps)` : ''}`,
+      script_update_background_completed:   `Script update completed${ctx.updatedCount != null ? ` — ${ctx.updatedCount} updated` : ''}${ctx.failedCount ? `, ${ctx.failedCount} errors` : ''}`,
+      ps_error:                             `PowerShell error${ctx.stage ? ` [${e(ctx.stage)}]` : ''}`,
     };
 
     const key = String(r.message || '');

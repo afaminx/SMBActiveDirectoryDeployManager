@@ -311,8 +311,8 @@ const GposPage = {
         }
       }
 
-      if (successCount > 0) App.toast(`${successCount} GPO${successCount > 1 ? 's' : ''} eliminados correctamente`, 'success');
-      if (failCount > 0) App.toast(`${failCount} GPO${failCount > 1 ? 's' : ''} no se pudieron eliminar`, 'error');
+      if (successCount > 0) App.toast(`${successCount} GPO${successCount > 1 ? 's' : ''} deleted successfully`, 'success');
+      if (failCount > 0) App.toast(`${failCount} GPO${failCount > 1 ? 's' : ''} could not be deleted`, 'error');
 
       this.selectedIds.clear();
       this.gposCache = null;
