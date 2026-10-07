@@ -3,6 +3,33 @@ describe('update-service', () => {
     vi.resetModules();
   });
 
+  it('queries this fork for release updates and opens its release page', async () => {
+    const https = require('https');
+    const { EventEmitter } = require('events');
+    const originalGet = https.get;
+    let requestOptions;
+    https.get = (options, callback) => {
+      requestOptions = options;
+      const request = new EventEmitter();
+      process.nextTick(() => {
+        const response = new EventEmitter();
+        response.statusCode = 200;
+        callback(response);
+        response.emit('data', '{"tag_name":"v1.2.12"}');
+        response.emit('end');
+      });
+      return request;
+    };
+    try {
+      const svc = require('../services/update-service');
+      const result = await svc.checkForUpdates('1.2.11');
+      expect(requestOptions.hostname).toBe('api.github.com');
+      expect(requestOptions.path).toBe('/repos/afaminx/SMBActiveDirectoryDeployManager/releases/latest');
+      expect(svc.RELEASE_PAGE_URL).toBe('https://github.com/afaminx/SMBActiveDirectoryDeployManager/releases/latest');
+      expect(result).toMatchObject({ success: true, hasUpdate: true, latestVersion: '1.2.12' });
+    } finally { https.get = originalGet; }
+  });
+
   it('detects a newer GitHub release than the local app version', async () => {
     const svc = require('../services/update-service');
     const result = await svc.checkForUpdates('1.2.7', {

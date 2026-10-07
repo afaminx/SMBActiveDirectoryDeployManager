@@ -111,7 +111,7 @@ const SettingsPage = {
             <strong style="color:${App.rsatAvailable ? 'var(--accent-secondary)' : 'var(--accent-danger)'}">
               ${App.rsatAvailable ? 'RSAT Disponible' : 'RSAT No Disponible'}
             </strong>
-            <p class="text-muted text-sm">${App.rsatAvailable ? 'El módulo ActiveDirectory de PowerShell está operativo.' : 'Las funciones de AD están deshabilitadas.'}</p>
+            <p class="text-muted text-sm">${App.rsatAvailable ? 'LDAP está disponible; las operaciones GPO usan el módulo GroupPolicy.' : 'Las funciones de AD están deshabilitadas.'}</p>
           </div>
         </div>
         ${!App.rsatAvailable ? `
@@ -119,9 +119,8 @@ const SettingsPage = {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <div>
               Para habilitar las funciones de Active Directory, instala RSAT ejecutando como Administrador:
-              <code>Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0</code>
-              <p class="mt-sm">Para GPO management, instala también:</p>
               <code>Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code>
+              <p class="mt-sm">Comprueba también LDAP y el DC configurado con Test Conexión AD.</p>
             </div>
           </div>
         ` : ''}
@@ -808,14 +807,10 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
     });
 
     document.getElementById('btn-test-ad').addEventListener('click', async () => {
-      if (!App.rsatAvailable) {
-        App.toast('RSAT no está disponible. Instálalo primero.', 'warning');
-        return;
-      }
       try {
-        const result = await window.api.ad.getOUs();
+        const result = await window.api.ad.testADConnection();
         if (result.success) {
-          App.toast(`Conexión AD exitosa — ${result.data.length} UOs encontradas`, 'success');
+          App.toast(`LDAP disponible — ${result.data.server} (${result.data.domain})`, 'success');
         } else {
           App.toast('Error AD: ' + result.error, 'error');
         }

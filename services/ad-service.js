@@ -2,6 +2,8 @@ const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { dcSnippet } = require('./ldap-snippets');
+const { gpoScriptHelpers } = require('./gpo-script-snippets');
 
 // ─── Input sanitization helpers ──────────────────────────────────────────────
 
@@ -18,7 +20,7 @@ function sanitizePSInput(str) {
 // Backslash is a legitimate DN escape character, so we keep it.
 function sanitizeDN(dn) {
   if (typeof dn !== 'string') return '';
-  return dn.replace(/[`$;|&{}<>\0]/g, '').replace(/'/g, "''").trim();
+  return dn.replace(/\0/g, '').replace(/'/g, "''").trim();
 }
 
 function normalizeDNArray(value) {
@@ -110,6 +112,7 @@ function validateScriptPath(scriptPath, config) {
 
 // ─── PowerShell execution ────────────────────────────────────────────────────
 
+let testPowerShellRunner = null;
 const DEFAULT_PS_TIMEOUT_MS = 120000; // 2 min per command
 
 // Fire-and-forget log helper. Wrapped in try/catch so it never
@@ -123,6 +126,7 @@ function _logPS(action, level, message, elapsed) {
 // as UTF-8 with BOM so PowerShell parses non-ASCII characters correctly,
 // and the file is deleted as soon as the process exits.
 function runPowerShell(command, { timeoutMs = DEFAULT_PS_TIMEOUT_MS, label = '' } = {}) {
+  if (testPowerShellRunner) return Promise.resolve().then(() => testPowerShellRunner(command));
   const t0 = Date.now();
   return new Promise((resolve, reject) => {
     const prelude =
@@ -198,20 +202,6 @@ function parseJsonObject(raw) {
 
 // ─── DC/domain resolution ────────────────────────────────────────────────────
 
-// Returns a PS snippet that resolves $adServer to the preferred DC (or PDC emulator).
-// Fails fast if neither is resolvable — avoids cascading null-reference errors.
-function dcSnippet(preferredDC) {
-  const safe = preferredDC ? preferredDC.replace(/[^a-zA-Z0-9.\-_]/g, '') : '';
-  if (safe) {
-    return `$adServer = '${safe}'`;
-  }
-  return `
-    try { $adServer = (Get-ADDomain -ErrorAction Stop).PDCEmulator }
-    catch { throw "No se pudo resolver un controlador de dominio (Get-ADDomain falló)." }
-    if (-not $adServer) { throw "PDC emulator no disponible." }
-  `.trim();
-}
-
 // ─── GPO naming ──────────────────────────────────────────────────────────────
 
 function buildGPOName(displayName, shareId) {
@@ -258,7 +248,8 @@ ${body}
       $code = 'ERROR'
       $msg = $_.Exception.Message
       $fq = $_.FullyQualifiedErrorId
-      if ($msg -match 'already linked|ya est.* vinculad|already exists|ya existe') { $code = 'ALREADY_EXISTS' }
+      if ($msg -match '^([A-Z_]+):') { $code = $matches[1] }
+      elseif ($msg -match 'already linked|ya est.* vinculad|already exists|ya existe') { $code = 'ALREADY_EXISTS' }
       elseif ($msg -match 'not found|no se encuentra|no se encontr|cannot find|no se puede encontrar') { $code = 'NOT_FOUND' }
       elseif ($msg -match 'is not linked|no est.* vinculad') { $code = 'NOT_LINKED' }
       elseif ($fq) {
@@ -294,24 +285,34 @@ const adService = {
   async checkRSAT() {
     try {
       const result = await runPowerShell(
-        "if ((Get-Module -ListAvailable -Name ActiveDirectory) -and (Get-Module -ListAvailable -Name GroupPolicy)) { Write-Output 'OK' } elseif (Get-Module -ListAvailable -Name ActiveDirectory) { Write-Output 'MISSING_GPMC' } else { Write-Output 'MISSING' }"
+        "if (Get-Module -ListAvailable -Name GroupPolicy) { 'OK' } else { 'MISSING_GPMC' }"
       );
-      if (result === 'OK') {
-        return { available: true, message: 'Módulo ActiveDirectory y GroupPolicy disponibles' };
-      }
-      if (result === 'MISSING_GPMC') {
-        return {
-          available: true,
-          missingGPMC: true,
-          message: 'Falta RSAT Group Policy. GPOs deshabilitadas. Instala: Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0'
-        };
-      }
+      const ldap = await this.testADConnection();
       return {
-        available: false,
-        message: 'RSAT no está instalado. Instala: Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0'
+        available: ldap.success,
+        missingGPMC: result !== 'OK',
+        ldapAvailable: ldap.success,
+        ...(ldap.code ? { code: ldap.code } : {}),
+        message: !ldap.success ? ldap.error : result === 'OK'
+          ? 'LDAP y módulo GroupPolicy disponibles'
+          : 'LDAP disponible. Instala: Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0'
       };
     } catch (err) {
       return { available: false, message: `Error al comprobar RSAT: ${err.message}` };
+    }
+  },
+
+  async testADConnection() {
+    try {
+      const config = require('./config').getConfig();
+      const result = await runPSJson(`${dcSnippet(config.preferredDC)}
+        @{ ok = $true; server = $adServer; domain = $domain; namingContext = $domainDN } | ConvertTo-Json -Compress`, 'testADConnection');
+      if (result.ok) return { success: true, data: {
+        server: result.server, domain: result.domain, namingContext: result.namingContext
+      } };
+      return { success: false, code: result.code, error: result.error };
+    } catch (err) {
+      return { success: false, code: 'AD_CONNECTION_FAILED', error: err.message };
     }
   },
 
@@ -323,28 +324,28 @@ const adService = {
       let ous = [];
       if (baseOUs.length === 0) {
         const json = await runPowerShell(
-          `Import-Module ActiveDirectory; ${dcSnippet(config.preferredDC)}; Get-ADOrganizationalUnit -Filter * -Server $adServer -Properties Name,DistinguishedName,Description -ResultPageSize 1000 | Select-Object Name,DistinguishedName,Description | ConvertTo-Json -Depth 5`
+          `${dcSnippet(config.preferredDC)}; Get-LdapOUs | Select-Object Name,DistinguishedName,Description | ConvertTo-Json -Depth 5`
         );
         ous = parseJsonArray(json, { where: 'OUs JSON' });
       } else {
         // Single PS process iterates all base OUs — avoids N process spawns.
         const arrayLiteral = toPSSingleQuotedArray(baseOUs);
         const script = `
-          Import-Module ActiveDirectory
+
           ${dcSnippet(config.preferredDC)}
           $bases = ${arrayLiteral}
           $all = New-Object System.Collections.Generic.List[object]
           $seen = @{}
           foreach ($b in $bases) {
             try {
-              $items = Get-ADOrganizationalUnit -Filter * -SearchBase $b -Server $adServer -Properties Name,DistinguishedName,Description -ResultPageSize 1000
+              $items = Get-LdapOUs $b
               foreach ($o in $items) {
                 if (-not $seen.ContainsKey($o.DistinguishedName)) {
                   $seen[$o.DistinguishedName] = $true
                   $all.Add([pscustomobject]@{ Name = $o.Name; DistinguishedName = $o.DistinguishedName; Description = $o.Description })
                 }
               }
-            } catch { Write-Warning "Base OU inválida: $b - $($_.Exception.Message)" }
+            } catch { throw "LDAP_SEARCH_FAILED: Base OU $b - $($_.Exception.Message)" }
           }
           $all | ConvertTo-Json -Depth 5
         `;
@@ -361,7 +362,7 @@ const adService = {
     try {
       const config = require('./config').getConfig();
       const json = await runPowerShell(
-        `Import-Module ActiveDirectory; Import-Module GroupPolicy; ${dcSnippet(config.preferredDC)}; Get-GPO -All -Server $adServer | Select-Object DisplayName,Id,GpoStatus,CreationTime,ModificationTime | ConvertTo-Json -Depth 3`
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; Get-GPO -All -Domain $domain -Server $adServer | Select-Object DisplayName,Id,GpoStatus,CreationTime,ModificationTime | ConvertTo-Json -Depth 3`
       );
       return { success: true, data: parseJsonArray(json, { where: 'GPOs JSON' }) };
     } catch (err) {
@@ -374,15 +375,15 @@ const adService = {
     const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
     const safeOU = sanitizeDN(ouDN);
     const script = `
-      Import-Module ActiveDirectory
-      Import-Module GroupPolicy
+
+      try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }
       ${dcSnippet(config.preferredDC)}
       try {
-        New-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+        New-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
         @{ ok = $true } | ConvertTo-Json -Compress
       } catch {
         if ($_.Exception.Message -match 'already linked|ya est.* vinculad') {
-          Set-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+          Set-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
           @{ ok = $true; code = 'REACTIVATED' } | ConvertTo-Json -Compress
         } else { throw }
       }
@@ -404,19 +405,19 @@ const adService = {
     const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
     const arrayLiteral = toPSSingleQuotedArray(normalized);
     const script = `
-      Import-Module ActiveDirectory
-      Import-Module GroupPolicy
+
+      try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }
       ${dcSnippet(config.preferredDC)}
       $targets = ${arrayLiteral}
       $results = @()
       foreach ($ou in $targets) {
         try {
-          New-GPLink -Name '${safeGpo}' -Target $ou -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+          New-GPLink -Name '${safeGpo}' -Target $ou -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
           $results += [pscustomobject]@{ ouDN = $ou; ok = $true }
         } catch {
           if ($_.Exception.Message -match 'already linked|ya est.* vinculad') {
             try {
-              Set-GPLink -Name '${safeGpo}' -Target $ou -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+              Set-GPLink -Name '${safeGpo}' -Target $ou -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
               $results += [pscustomobject]@{ ouDN = $ou; ok = $true; code = 'REACTIVATED' }
             } catch {
               $results += [pscustomobject]@{ ouDN = $ou; ok = $false; error = $_.Exception.Message }
@@ -462,86 +463,38 @@ const adService = {
 
     return withGPOLock(gpoName, async () => {
       const ps = `
-        Import-Module ActiveDirectory
-        Import-Module GroupPolicy
+
+        try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }
         ${dcSnippet(config.preferredDC)}
 
+        ${gpoScriptHelpers}
         $gpoName = '${safeGpoName}'
         $scriptLocalPath = '${safeScriptPath}'
         $ouTargets = ${ouTargetsArray}
         $createdNew = $false
 
-        $gpo = Get-GPO -Name $gpoName -Server $adServer -ErrorAction SilentlyContinue
+        $gpo = Get-GPO -Name $gpoName -Domain $domain -Server $adServer -ErrorAction SilentlyContinue
         if (-not $gpo) {
-          $gpo = New-GPO -Name $gpoName -Server $adServer -ErrorAction Stop
+          $gpo = New-GPO -Name $gpoName -Domain $domain -Server $adServer -ErrorAction Stop
           $createdNew = $true
         }
         $gpoGuid = "{" + $gpo.Id.ToString() + "}"
-        $domainObj = Get-ADDomain -Server $adServer -ErrorAction Stop
-        if (-not $domainObj) { throw "No se pudo obtener el Dominio de Active Directory." }
-        $domain = $domainObj.DNSRoot
+        
 
         try {
-          $machineScriptsPath = "\\\\$adServer\\sysvol\\$domain\\Policies\\$gpoGuid\\Machine\\Scripts\\Startup"
-          if (-not (Test-Path $machineScriptsPath)) {
-            New-Item -ItemType Directory -Path $machineScriptsPath -Force | Out-Null
-          }
-
-          $scriptsIni = "\\\\$adServer\\sysvol\\$domain\\Policies\\$gpoGuid\\Machine\\Scripts\\scripts.ini"
-          $iniLines = @("[Startup]", "0CmdLine=powershell.exe", "0Parameters=-ExecutionPolicy Bypass -WindowStyle Hidden -File \`"$scriptLocalPath\`"")
-          Set-Content -Path $scriptsIni -Value $iniLines -Encoding Unicode -Force
-
-          # Bump gpt.ini Version. The value encodes (UserVer << 16) | MachineVer.
-          # Our changes affect Machine only — increment the low word, preserve high.
-          $gptIni = "\\\\$adServer\\sysvol\\$domain\\Policies\\$gpoGuid\\gpt.ini"
-          $newVersionValue = $null
-          if (Test-Path $gptIni) {
-            $gptLines = Get-Content $gptIni
-            $newGptLines = @()
-            foreach ($line in $gptLines) {
-              if ($line -match "^Version=(.*)") {
-                $current = [uint32]$matches[1]
-                $user = ($current -shr 16) -band 0xFFFF
-                $machine = ($current -band 0xFFFF) + 1
-                if ($machine -gt 0xFFFF) { $machine = 1; $user = ($user + 1) -band 0xFFFF }
-                $newVersionValue = ($user -shl 16) -bor $machine
-                $newGptLines += "Version=$newVersionValue"
-              } else {
-                $newGptLines += $line
-              }
-            }
-            Set-Content -Path $gptIni -Value $newGptLines -Encoding ASCII -Force
-          }
-
-          # Register the Scripts CSE so clients actually execute startup scripts.
-          # If this fails we roll back the GPO we just created — a GPO without
-          # gPCMachineExtensionNames silently does nothing on clients.
-          $adPath = "CN=$gpoGuid,CN=Policies,CN=System,$($domainObj.DistinguishedName)"
-          $gpoAdObj = Get-ADObject -Identity $adPath -Server $adServer -Properties gPCMachineExtensionNames,versionNumber -ErrorAction Stop
-          $ext = $gpoAdObj.gPCMachineExtensionNames
-          $scriptExt = "[{42B5FAAE-6536-11D2-AE5A-0000F87571E3}{40B6664F-4972-11D1-A7CA-0000F87571E3}]"
-          if ($null -eq $ext -or $ext -notmatch "42B5FAAE") {
-            $newExt = "$ext$scriptExt"
-            Set-ADObject -Identity $adPath -Server $adServer -Replace @{gPCMachineExtensionNames=$newExt} -ErrorAction Stop
-          }
-
-          # Also bump versionNumber on the AD object so the domain-side copy
-          # matches SYSVOL and clients refresh the policy.
-          if ($newVersionValue -ne $null) {
-            Set-ADObject -Identity $adPath -Server $adServer -Replace @{versionNumber=[int]$newVersionValue} -ErrorAction Stop
-          }
+          Set-DeploymentStartup $gpoGuid $scriptLocalPath $false
 
           # Link to each requested OU — aggregate results instead of bailing on first failure.
           $linkResults = @()
           foreach ($ouDN in $ouTargets) {
             if (-not $ouDN) { continue }
             try {
-              New-GPLink -Name $gpoName -Target $ouDN -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+              New-GPLink -Name $gpoName -Target $ouDN -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
               $linkResults += [pscustomobject]@{ ouDN = $ouDN; ok = $true }
             } catch {
               if ($_.Exception.Message -match 'already linked|ya est.* vinculad|Scope of Management') {
                 try {
-                  Set-GPLink -Name $gpoName -Target $ouDN -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
+                  Set-GPLink -Name $gpoName -Target $ouDN -Domain $domain -Server $adServer -LinkEnabled Yes -ErrorAction Stop | Out-Null
                   $linkResults += [pscustomobject]@{ ouDN = $ouDN; ok = $true; code = 'REACTIVATED' }
                 } catch {
                   $linkResults += [pscustomobject]@{ ouDN = $ouDN; ok = $false; error = $_.Exception.Message }
@@ -556,7 +509,7 @@ const adService = {
         } catch {
           # Rollback only if WE created the GPO in this call — never delete a pre-existing one.
           if ($createdNew) {
-            try { Remove-GPO -Name $gpoName -Server $adServer -ErrorAction SilentlyContinue | Out-Null } catch {}
+            try { Remove-GPO -Name $gpoName -Domain $domain -Server $adServer -ErrorAction SilentlyContinue | Out-Null } catch {}
           }
           throw
         }
@@ -586,7 +539,7 @@ const adService = {
     const safe = sanitizePSInput(gpoName).replace(/'/g, "''");
     return withGPOLock(gpoName, async () => {
       const result = await runPSJson(
-        `Import-Module ActiveDirectory; Import-Module GroupPolicy; ${dcSnippet(config.preferredDC)}; Remove-GPO -Name '${safe}' -Server $adServer -ErrorAction Stop; @{ ok = $true } | ConvertTo-Json -Compress`,
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; Remove-GPO -Name '${safe}' -Domain $domain -Server $adServer -ErrorAction Stop; @{ ok = $true } | ConvertTo-Json -Compress`,
         'deleteGPO'
       );
       if (result.ok) return { success: true };
@@ -600,7 +553,7 @@ const adService = {
       const config = require('./config').getConfig();
       const safe = sanitizePSInput(gpoName).replace(/'/g, "''");
       const result = await runPSJson(
-        `Import-Module GroupPolicy; ${dcSnippet(config.preferredDC)}; $g = Get-GPO -Name '${safe}' -Server $adServer -ErrorAction SilentlyContinue; if ($g) { @{ ok = $true; exists = $true } | ConvertTo-Json -Compress } else { @{ ok = $true; exists = $false } | ConvertTo-Json -Compress }`
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; $g = Get-GPO -Name '${safe}' -Domain $domain -Server $adServer -ErrorAction SilentlyContinue; if ($g) { @{ ok = $true; exists = $true } | ConvertTo-Json -Compress } else { @{ ok = $true; exists = $false } | ConvertTo-Json -Compress }`
       );
       if (result.ok) return { exists: !!result.exists };
       // Transient failure: signal uncertainty so the caller doesn't assume "not found".
@@ -615,7 +568,7 @@ const adService = {
     const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
     const safeOU = sanitizeDN(ouDN);
     const result = await runPSJson(
-      `Import-Module ActiveDirectory; Import-Module GroupPolicy; ${dcSnippet(config.preferredDC)}; Remove-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Server $adServer -ErrorAction Stop | Out-Null; @{ ok = $true } | ConvertTo-Json -Compress`
+      `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; Remove-GPLink -Name '${safeGpo}' -Target '${safeOU}' -Domain $domain -Server $adServer -ErrorAction Stop | Out-Null; @{ ok = $true } | ConvertTo-Json -Compress`
     );
     return normalizeUnlinkResult(result);
   },
@@ -625,59 +578,13 @@ const adService = {
     const safeGpo = sanitizePSInput(gpoName).replace(/'/g, "''");
     return withGPOLock(gpoName, async () => {
       const ps = `
-        Import-Module ActiveDirectory
-        Import-Module GroupPolicy
+
+        try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }
         ${dcSnippet(config.preferredDC)}
-        $gpo = Get-GPO -Name '${safeGpo}' -Server $adServer -ErrorAction Stop
+        $gpo = Get-GPO -Name '${safeGpo}' -Domain $domain -Server $adServer -ErrorAction Stop
         $gpoGuid = "{" + $gpo.Id.ToString() + "}"
-        $domainObj = Get-ADDomain -Server $adServer -ErrorAction Stop
-        $domain = $domainObj.DNSRoot
-
-        $scriptsIni = "\\\\$adServer\\sysvol\\$domain\\Policies\\$gpoGuid\\Machine\\Scripts\\scripts.ini"
-        if (Test-Path $scriptsIni) { Remove-Item $scriptsIni -Force }
-
-        $startupDir = "\\\\$adServer\\sysvol\\$domain\\Policies\\$gpoGuid\\Machine\\Scripts\\Startup"
-        if (Test-Path $startupDir) { Remove-Item "$startupDir\\*" -Recurse -Force -ErrorAction SilentlyContinue }
-
-        $gptIni = "\\\\$adServer\\sysvol\\$domain\\Policies\\$gpoGuid\\gpt.ini"
-        $newVersionValue = $null
-        if (Test-Path $gptIni) {
-          $gptLines = Get-Content $gptIni
-          $newGptLines = @()
-          foreach ($line in $gptLines) {
-            if ($line -match "^Version=(.*)") {
-              $current = [uint32]$matches[1]
-              $user = ($current -shr 16) -band 0xFFFF
-              $machine = ($current -band 0xFFFF) + 1
-              if ($machine -gt 0xFFFF) { $machine = 1; $user = ($user + 1) -band 0xFFFF }
-              $newVersionValue = ($user -shl 16) -bor $machine
-              $newGptLines += "Version=$newVersionValue"
-            } else {
-              $newGptLines += $line
-            }
-          }
-          Set-Content -Path $gptIni -Value $newGptLines -Encoding ASCII -Force
-        }
-
-        $adPath = "CN=$gpoGuid,CN=Policies,CN=System,$($domainObj.DistinguishedName)"
-        try {
-          $gpoAdObj = Get-ADObject -Identity $adPath -Server $adServer -Properties gPCMachineExtensionNames -ErrorAction Stop
-          $ext = $gpoAdObj.gPCMachineExtensionNames
-          if ($ext) {
-            $scriptExt = "[{42B5FAAE-6536-11D2-AE5A-0000F87571E3}{40B6664F-4972-11D1-A7CA-0000F87571E3}]"
-            $newExt = $ext -replace [regex]::Escape($scriptExt), ""
-            if ([string]::IsNullOrWhiteSpace($newExt)) {
-              Set-ADObject -Identity $adPath -Server $adServer -Clear gPCMachineExtensionNames -ErrorAction Stop
-            } else {
-              Set-ADObject -Identity $adPath -Server $adServer -Replace @{gPCMachineExtensionNames=$newExt} -ErrorAction Stop
-            }
-          }
-          if ($newVersionValue -ne $null) {
-            Set-ADObject -Identity $adPath -Server $adServer -Replace @{versionNumber=[int]$newVersionValue} -ErrorAction Stop
-          }
-        } catch {
-          Write-Warning "No se pudo actualizar atributos AD del GPO: $($_.Exception.Message)"
-        }
+        ${gpoScriptHelpers}
+        Set-DeploymentStartup $gpoGuid '' $true
 
         @{ ok = $true } | ConvertTo-Json -Compress
       `;
@@ -691,8 +598,8 @@ const adService = {
     try {
       const config = require('./config').getConfig();
       const json = await runPowerShell(
-        `Import-Module ActiveDirectory; Import-Module GroupPolicy; ${dcSnippet(config.preferredDC)};
-$ous = Get-ADOrganizationalUnit -Filter * -Properties gPLink -Server $adServer -ResultPageSize 1000
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)};
+$ous = Get-LdapOUs
 $map = @{}
 foreach ($ou in $ous) {
   if ($ou.gPLink) {
@@ -724,12 +631,12 @@ $map | ConvertTo-Json -Compress`
         .join(',') + ')';
       const ouArrayLiteral = toPSSingleQuotedArray(targetOUs);
       const json = await runPowerShell(
-        `Import-Module ActiveDirectory; Import-Module GroupPolicy; ${dcSnippet(config.preferredDC)};
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)};
 $targetNames = ${gpoArrayLiteral}
 $targetLookup = @{}
 foreach ($name in $targetNames) { $targetLookup[$name.ToLower()] = $true }
 $gpoLookup = @{}
-Get-GPO -All -Server $adServer -ErrorAction Stop | ForEach-Object {
+Get-GPO -All -Domain $domain -Server $adServer -ErrorAction Stop | ForEach-Object {
   if ($targetLookup.ContainsKey($_.DisplayName.ToLower())) {
     $gpoLookup[$_.Id.ToString().ToLower()] = $_.DisplayName
   }
@@ -737,12 +644,10 @@ Get-GPO -All -Server $adServer -ErrorAction Stop | ForEach-Object {
 $ouTargets = ${ouArrayLiteral}
 if ($ouTargets.Count -gt 0) {
   $ous = foreach ($ouDN in $ouTargets) {
-    try {
-      Get-ADOrganizationalUnit -Identity $ouDN -Server $adServer -Properties DistinguishedName,gPLink -ErrorAction Stop
-    } catch {}
+    Get-LdapOU $ouDN
   }
 } else {
-  $ous = Get-ADOrganizationalUnit -Filter * -Server $adServer -Properties DistinguishedName,gPLink -ResultPageSize 1000
+  $ous = Get-LdapOUs
 }
 $result = @{}
 foreach ($ou in $ous) {
@@ -773,7 +678,7 @@ $result | ConvertTo-Json -Depth 5 -Compress`
       const config = require('./config').getConfig();
       const safeOuDN = sanitizeDN(ouDN);
       const json = await runPowerShell(
-        `Import-Module ActiveDirectory; Import-Module GroupPolicy; ${dcSnippet(config.preferredDC)}; (Get-GPInheritance -Target '${safeOuDN}' -Server $adServer).GpoLinks | Select-Object DisplayName,Enabled,Order | ConvertTo-Json -Depth 2`
+        `try { Import-Module GroupPolicy -ErrorAction Stop } catch { throw "GROUPPOLICY_UNAVAILABLE: $($_.Exception.Message)" }; ${dcSnippet(config.preferredDC)}; (Get-GPInheritance -Target '${safeOuDN}' -Domain $domain -Server $adServer).GpoLinks | Select-Object DisplayName,Enabled,Order | ConvertTo-Json -Depth 2`
       );
       return { success: true, data: parseJsonArray(json, { where: 'GPO conflicts JSON' }) };
     } catch (err) {
@@ -845,6 +750,8 @@ module.exports = {
   stripGPOPrefix,
   __test__: {
     isMissingGPOLinkError,
-    normalizeUnlinkResult
+    normalizeUnlinkResult,
+    dcSnippet, sanitizeDN, buildOUTree, parseJsonArray,
+    setPowerShellRunner(runner) { testPowerShellRunner = runner; }
   }
 };

@@ -145,7 +145,7 @@ const App = {
       this.rsatAvailable = result.available;
       this.rsatMissingGPMC = result.missingGPMC || false;
       
-      if (this.rsatMissingGPMC) {
+      if (this.rsatMissingGPMC && result.available) {
         statusEl.className = 'rsat-status warning';
         statusEl.querySelector('.rsat-text').textContent = t('common.rsatMissingGpmc');
       } else {
@@ -413,7 +413,7 @@ const App = {
         <div>
           <strong>${t('common.rsatNotInstalledTitle')}</strong> — ${t('common.rsatNotInstalledMsg')}
           Ejecuta como Administrador en PowerShell:
-          <code>Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0</code>
+          <code>Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code>
         </div>
       </div>`;
   },

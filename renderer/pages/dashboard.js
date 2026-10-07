@@ -214,7 +214,7 @@ const DashboardPage = {
                 <li>${t('dashboard.cause2')}</li>
                 <li>${t('dashboard.cause3')}</li>
               </ul>
-              <p style="margin-top:8px;color:var(--text-muted);">Instala RSAT con: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;font-size:var(--font-xs);">Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0</code></p>
+              <p style="margin-top:8px;color:var(--text-muted);">Instala RSAT con: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;font-size:var(--font-xs);">Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code></p>
             </div>
           </div>
         ` : ''}

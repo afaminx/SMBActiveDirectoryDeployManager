@@ -137,6 +137,7 @@ app.whenReady().then(() => {
 
   // ─── IPC Handlers: AD Service ────────────────────────────────────
   ipcMain.handle('ad:checkRSAT', () => adService.checkRSAT());
+  ipcMain.handle('ad:testADConnection', () => adService.testADConnection());
   ipcMain.handle('ad:getOUs', (_, ignoreBaseOU = false) => {
     try { assertBoolean(ignoreBaseOU, 'ignoreBaseOU'); }
     catch (e) { return { success: false, error: 'Invalid arguments', data: [] }; }

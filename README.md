@@ -1,232 +1,156 @@
-# Active Directory Deploy Manager
+# SMBActiveDirectoryDeployManager
 
-<div align="center">
-  <img src="img/screenshot.png" alt="AppDeploy Manager Screenshot" width="800"/>
-</div>
+A Windows desktop application for deploying software through Group Policy in
+Samba Active Directory environments. This fork uses LDAP for directory access
+and keeps Microsoft's GroupPolicy PowerShell module for GPO management.
 
-**Active Directory Deploy Manager** is a Windows desktop application for SysAdmins and IT teams. It automates unattended software deployment through Active Directory Group Policy Objects (GPOs) — select an installer, pick your target OUs, and the application generates the PowerShell script, copies files to the share, creates the GPO, and links it, all from a single unified interface.
+Repository: [afaminx/SMBActiveDirectoryDeployManager](https://github.com/afaminx/SMBActiveDirectoryDeployManager)
 
----
+Based on [ActiveDirectoryDeployManager by gpandres](https://github.com/gpandres/ActiveDirectoryDeployManager).
+The application version is **1.2.11**. The current modification revision is
+**mod-rev-1.4**; these are separate version numbers.
 
-## 🚀 Key Features
+![Application screenshot](img/screenshot.png)
 
-### Active Directory Integration
-- **OU Browser** — visual tree of your domain's Organizational Units, showing which apps are deployed to each OU via GPO.
-- **GPO management** — create, link, unlink, and delete GPOs directly from the UI; no manual ADUC/GPMC work needed.
-- **Conflict detection** — see all GPOs linked to a given OU before adding a new one.
-- **Bulk assignment** — link the same GPO (or a new one) to multiple OUs in one operation.
-- **Dependency ordering** — configure app A to wait for app B with a configurable timeout.
+## Samba AD support
 
-### Deployment Templates (22+)
+Samba AD does not provide Microsoft's Active Directory Web Services (ADWS).
+This fork removes the application's dependency on the ActiveDirectory PowerShell
+module and TCP port 9389.
 
-Parametric templates auto-generate deployment scripts for the most common enterprise software. Just fill in your environment-specific values and click Deploy.
+- RootDSE, domain information, OU searches, GPO LDAP attributes and `gPLink`
+  use `System.DirectoryServices` with the logged-on Windows account.
+- GPO creation, enumeration, linking, unlinking and inheritance still use the
+  Microsoft GroupPolicy module.
+- A configured Domain Controller is used directly. An empty setting uses native
+  domain/PDC discovery without ADWS.
+- Startup-script changes preserve unrelated script entries and CSE registrations.
+  LDAP and SYSVOL policy versions are checked and updated together; write
+  failures are reported and rollback is attempted.
+- Settings tests LDAP connectivity separately from OU enumeration. Readiness
+  checks use LDAP and GroupPolicy availability.
 
-**Security & Endpoint Protection**
-| Template | Parameters |
-|----------|-----------|
-| Wazuh | Manager IP, group, enrollment password — service auto-starts after install (no reboot required) |
-| SentinelOne | Site token |
-| Cortex XDR | Install directory (optional) |
-| Bitdefender BEST | Default MSI deployment |
-| CrowdStrike Falcon | CID |
+The implementation is intended for both Samba AD and Microsoft AD. Local tests
+and package checks pass; real-domain GPMC and Windows 11 integration testing is
+still required. See [the manual validation plan](tests/ADMIN-VALIDATION.txt) and
+[revision notes](REVISION.txt).
 
-**Network & Connectivity**
-| Template | Parameters |
-|----------|-----------|
-| Zscaler ZCC | Cloud name, user domain, strict enforcement |
-| GlobalProtect | Portal FQDN |
-| Cisco Secure Client | Profile XML path |
-| FortiClient | Tunnel config, SSO, certificate validation |
+## Features
 
-**RMM & Remote Support**
-| Template | Parameters |
-|----------|-----------|
-| Lansweeper | Server, port, cloud relay key |
-| NinjaOne | Agent token |
-| Freshservice | Registration token |
-| TeamViewer | Custom config ID, API token |
-| AnyDesk | Generic MSI |
+- Browse OUs, configure Base Search OUs and inspect existing GPO links.
+- Create, link, unlink and delete deployment GPOs; assign them to multiple OUs.
+- Generate install and uninstall scripts for EXE, MSI, winget and built-in or
+  custom deployment templates.
+- Group applications into bundles and configure deployment dependencies.
+- Detect installed applications through tracker files, file versions or registry
+  values to avoid unnecessary reinstallation.
+- Keep installers and deployment scripts on your configured SMB share.
+- Export/import configuration and use the application's language settings.
+- Record local deployment logs or connect the optional self-hosted logging
+  backend. See [logs.md](logs.md) for the MariaDB/Fastify/Caddy deployment guide.
 
-**Productivity & ERP**
-| Template | Parameters |
-|----------|-----------|
-| Microsoft Office | XML config file |
-| Office 365 / LTSC (ODT) | Auto-generates XML from selections |
-| SAP GUI | Version, theme |
+## Requirements
 
-**Backup**
-| Template | Parameters |
-|----------|-----------|
-| Veeam Agent | XML config from Veeam server |
-| CrashPlan | Deployment URL + token |
+On the administration workstation:
 
-**Generic**
-| Template | Parameters |
-|----------|-----------|
-| Generic EXE / MSI | Silent args, detection method |
-| Winget | Package ID from Windows Package Manager catalog |
-| Raw PowerShell | Write your own script with the full runtime wrapper |
+- Windows with Windows PowerShell 5.1 and access to your domain.
+- A domain account with permission to read directory objects, manage the selected
+  GPOs and links, and write the relevant SYSVOL files.
+- RSAT **Group Policy Management Tools**, providing the `GroupPolicy` module.
+- LDAP connectivity to the Domain Controller and SMB access to SYSVOL.
+- A software-repository share writable by administrators and readable by target
+  computers.
 
-### Custom Templates
-Define your own templates with a named parameter form — reuse them across deployments the same way built-in templates work.
+The ActiveDirectory PowerShell module and ADWS are not required. A failing
+`Get-ADDomain` command on Samba AD does not by itself mean the domain is
+unreachable. RSAT and domain access are not required on the development/build
+machine for local tests and packaging.
 
-### Bundles
-Group multiple apps into a **Bundle** and deploy them as a suite with a single GPO and one click. Each app in the bundle can have its own template and parameters.
+## Download and first run
 
-### Smart Install Detection
-Prevent re-installs by configuring a detection strategy per app:
-- **Tracker token** — lightweight file written by the script on success.
-- **File version** — check that a specific file exists at a minimum version.
-- **Registry value** — inspect an HKLM/HKCU key and value.
+Download the portable executable or unpacked Windows archive from this fork's
+[Releases](https://github.com/afaminx/SMBActiveDirectoryDeployManager/releases).
+Release executables are currently unsigned.
 
-### Winget Integration
-Search and deploy from the Windows Package Manager catalog. The app resolves the package manifest at deploy time, keeping versions up to date.
+1. Start the application and select your language.
+2. Set the software-repository share path.
+3. Set **Domain Controller (multi-DC)** to your DC hostname. Leave it empty only
+   when you want native domain/PDC discovery.
+4. Select Base Search OUs if you want to limit the OU browser.
+5. Check LDAP/GroupPolicy readiness and use **Test AD Connection** in Settings.
+6. Create a test deployment and link its GPO to a dedicated test OU before using
+   it with production computers.
 
-### Uninstall Management
-Every app can have an uninstall script generated alongside the install script:
-- `auto-msi` — quiet MSI uninstall.
-- `auto-registry` — find the uninstall string from Programs & Features.
-- `manual` — custom script.
-- `winget` — `winget uninstall`.
+Deployment scripts execute at computer startup. After `gpupdate /force`, reboot
+the test client to validate startup execution. Installers remain on the software
+share; they are not moved into SYSVOL.
 
-### Import / Export
-Export your full configuration (apps, bundles, settings) to a portable JSON file. Secrets and API keys are automatically stripped from the export.
+## Development and build
 
-### Local Toast Notifications
-Scripts raise native Windows notifications bridged from Session 0 to the user session, notifying end users that a corporate installation is in progress.
+Use Node.js and pnpm **11.19.0** on Windows.
 
-### Internationalization
-Multi-language UI with a setup assistant on first boot. Language can be changed at any time in Settings.
-
----
-
-## 📊 Logging System
-
-AD Deploy Manager includes an optional self-hosted centralized logging backend. When enabled, every deployment action from every machine running the app is batched and sent to a central server — searchable, filterable, and paginated from within the app.
-
-**Architecture:** Docker Compose stack — MariaDB + Fastify API + Caddy reverse proxy (internal TLS).
-
-**Key capabilities:**
-- Per-device enrollment (machines swap a one-time token for a personal ingest API key).
-- Share-based auto-enrollment — publish a signed config to your network share and every client auto-enrolls on startup; no per-machine manual steps.
-- Keyset-paginated log search (device, level, source, free text).
-- Aggregated stats (24 h / 7 d / 30 d windows).
-- Sensitive field auto-masking before any disk or network write (`password`, `token`, `apikey`, `secret`, `credential`, etc.).
-- Web-based admin panel (username/password auth, TLS fingerprint display, API key management).
-
-📖 **[Full deployment guide → logs.md](logs.md)**
-
----
-
-## 🔒 Security
-
-- **Electron hardening** — `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`. All renderer ↔ main communication through a typed `contextBridge` preload.
-- **IPC input validation** — every IPC channel validates type, length, and allowed values before touching any service.
-- **PowerShell input sanitization** — all user-supplied strings are single-quote escaped before injection into PowerShell. DNs are parsed with RFC 4514 backslash-escape awareness.
-- **Script path allowlisting** — generated scripts can only be written to paths under your configured `networkSharePath` or `logDirectory`. Absolute path traversal and control characters are rejected.
-- **GPO concurrency locks** — per-GPO name mutex prevents race conditions when multiple async operations target the same GPO.
-- **DPAPI secret storage** — API keys and enrollment tokens are stored encrypted via Windows DPAPI (user-bound). Never in plaintext config files.
-- **TLS certificate pinning** — the remote logging client validates the server certificate by SHA-256 fingerprint, not the system trust store. Configurable per-deployment.
-- **Log field masking** — `log-sanitizer` applies regex masking recursively (depth 6) on all log objects before writing to disk or network. Sensitive field names → `[REDACTED]`.
-- **IPC error auditing** — all IPC handlers are wrapped with a logging decorator that records failures, exceptions, and slow calls (>10 s) to the activity log.
-
----
-
-## ⚙️ Prerequisites
-
-- **Windows** 10 / 11 / Server 2016+ (the app runs on the admin machine, not the targets).
-- Machine joined to an **Active Directory** domain with **Domain Admin** privileges (required for GPO creation and linking).
-- **Active Directory RSAT tools** installed locally (`RSAT: Active Directory Domain Services and Lightweight Directory Services Tools` and `RSAT: Group Policy Management Tools`). The app checks for these on startup and guides installation if missing.
-- **Network share** accessible from both the admin machine (read/write) and the target machines (read-only) — used to store installers and generated scripts.
-- **Node.js** only needed for developer / build mode.
-
----
-
-## 🛠️ Local Installation and Build
-
-```bash
-git clone https://github.com/gpandres/ActiveDirectoryDeployManager
-cd ActiveDirectoryDeployManager
-npm install
+```powershell
+git clone https://github.com/afaminx/SMBActiveDirectoryDeployManager.git
+cd SMBActiveDirectoryDeployManager
+pnpm install --frozen-lockfile
+pnpm test
+pnpm start
 ```
 
-Run in development mode:
-```bash
-npm start
+Build the portable release:
+
+```powershell
+pnpm run build
 ```
 
-Build distributable executable:
-```bash
-npm run build
-# or for portable build:
-npm run build:portable
+The build creates `codex/bin/mod-rev-1.4/win-unpacked/` and
+`codex/pkg/mod-rev-1.4/ADDeployManager-Portable.exe` in a standalone checkout.
+`pnpm run build:dir` creates the unpacked application only. Existing revision
+outputs are never overwritten. Select a new `ADDM_REVISION` for another build
+and preserve matching source and revision notes; in the revision-directory
+layout, copy the source into that new revision first.
+
+If dependency lifecycle scripts are disabled, install Electron before building:
+
+```powershell
+node node_modules/electron/install.js
 ```
 
----
+The root `pnpm-lock.yaml` is the application's dependency lockfile. The optional
+logs server has its own `server/api/package-lock.json`. Dependencies, caches and
+generated test files are excluded from Git.
 
-## 📖 Architecture and How It Works
+## Validation
 
-```
-┌─────────────────────────────────────────────────────┐
-│  Electron App (Admin Machine)                        │
-│                                                      │
-│  UI (Renderer) ←→ IPC ←→ Main Process               │
-│                           ├─ app-service             │
-│                           ├─ ad-service (PS bridge)  │
-│                           ├─ script-service          │
-│                           └─ log-sink                │
-└──────────────────┬──────────────────────┬────────────┘
-                   │                      │
-       ┌───────────▼──────┐   ┌───────────▼──────────┐
-       │  Network Share   │   │  Active Directory      │
-       │  \\server\share  │   │                        │
-       │  ├ apps-config   │   │  GPO created/linked    │
-       │  └ Apps/         │   │  to target OUs         │
-       │     └ MyApp/     │   └──────────┬─────────────┘
-       │        ├ install │              │ GPO applies at boot
-       │        ├ uninst  │              │
-       │        ├ version │   ┌──────────▼─────────────┐
-       │        └ setup   │   │  Client Machines        │
-       └──────────────────┘   │                        │
-                              │  • Downloads installer  │
-                              │  • Checks detection     │
-                              │  • Runs silently        │
-                              │  • Toasts user          │
-                              │  • Logs result          │
-                              └──────────┬──────────────┘
-                                         │ (remote mode)
-                              ┌──────────▼──────────────┐
-                              │  Logging Server          │
-                              │  (Docker — optional)     │
-                              │                          │
-                              │  Caddy → Fastify API     │
-                              │       → MariaDB          │
-                              └──────────────────────────┘
+Local tests cover generated PowerShell syntax, LDAP response shapes, input
+quoting, startup ownership, unrelated script/CSE preservation, policy versions,
+and mocked LDAP write failures with local file rollback.
+
+On the separate administration workstation, use the read-only diagnostic with
+your actual DC hostname:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\diagnose-samba-ad.ps1 -Server dc.example.test
 ```
 
-### Deployment flow (step by step)
+Replace `dc.example.test` with your own DC. The diagnostic can also accept
+`-BaseOU` and `-GpoGuid` for a dedicated test OU/GPO. It does not change directory
+objects. Follow [ADMIN-VALIDATION.txt](tests/ADMIN-VALIDATION.txt) for the full
+GPMC, SYSVOL and Windows 11 test sequence.
 
-1. **Configure the app** — point it at your network share, set your domain, optional base OUs.
-2. **Create an app** — select installer (EXE/MSI) or specify a winget package ID. Choose a template and fill in parameters.
-3. **Generate script** — the app builds a PowerShell `install.ps1` with silent args, download logic, detection check, toast notification, and logging.
-4. **Deploy to share** — installer and scripts are copied to `\\server\share\Apps\<AppName>\`. A `version.json` manifest tracks paths and hashes.
-5. **Link to OUs** — the app either creates a new GPO or reuses an existing one, injects the startup script, bumps the `gpt.ini` version counter, and links to the selected OUs.
-6. **Client execution** — at next boot, Group Policy applies and runs `install.ps1` in SYSTEM context. The script downloads the installer, checks if already installed (detection), executes silently, notifies the user, and logs the result.
+Legacy startup scripts without an ownership record require manual review before
+automatic removal. Avoid concurrent GPMC edits to a policy while the application
+is writing it. LDAP and SMB updates cannot form a single transaction, so rollback
+is best effort and incomplete rollback is reported.
 
----
+## Issues and license
 
-## ⚡ First-Run Setup
+Report problems in this fork's
+[issue tracker](https://github.com/afaminx/SMBActiveDirectoryDeployManager/issues).
+Include the modification revision, operation, relevant error and test results;
+remove credentials and private environment details from attached logs.
 
-On first launch, a setup assistant guides you through:
-
-1. **Language selection** — UI locale (persisted in config).
-2. **Network share path** — UNC path the app and clients share (e.g., `\\fileserver\Deploy`).
-3. **Domain Controller** (optional) — leave blank to auto-discover.
-4. **Base OUs** (optional) — scope the OU browser to specific subtrees.
-5. **RSAT check** — the app verifies the required PowerShell modules are present.
-
-Settings can be changed at any time under **Settings**.
-
----
-
-> AD Deploy Manager is built with **Electron.js** and the native PowerShell subsystem. It has no mandatory cloud dependency — everything runs on your internal network. The logging server is entirely optional and self-hosted.
+Original application by **gpandres**. Fork maintained under **afaminx**.
+Licensed under **AGPL-3.0-only**; see [LICENSE](LICENSE). The original license and
+author attribution are retained. Application release checks use this fork's
+GitHub repository.
