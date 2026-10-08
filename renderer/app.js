@@ -64,6 +64,7 @@ const App = {
     } else {
       // Check share health before first navigation
       await this.checkShareHealth();
+      await window.initI18n();
       this.updateSidebarLanguage();
       this.navigate('dashboard');
     }
@@ -329,7 +330,8 @@ const App = {
     if (!force && this.updateCheckResult) return this.updateCheckResult;
 
     this._updateCheckPromise = window.api.updates.check()
-      .then(result => {
+      .then(async result => {
+        await window.initI18n();
         this.updateCheckResult = result;
         this.updateAppUpdateBanner();
         this.refreshSettingsUpdateSection();
@@ -501,7 +503,7 @@ const App = {
         if (btn) { btn.disabled = true; btn.textContent = t('gui.checking'); }
         const ok = await this.checkShareHealth();
         if (ok) {
-          this.toast('Conexion al share restablecida', 'success');
+          this.toast(t('gui.shareRestored'), 'success');
           // Re-render current page to refresh data
           this.navigate(this.currentPage);
         } else {
@@ -574,7 +576,9 @@ const App = {
     banner.appendChild(actions);
   },
 
-  promptAppUpdateDismissal() {
+  async promptAppUpdateDismissal() {
+    await window.initI18n();
+    this.updateAppUpdateBanner();
     const result = this.updateCheckResult;
     const latestVersion = result?.latestVersion;
     if (!result?.hasUpdate || !latestVersion) return;

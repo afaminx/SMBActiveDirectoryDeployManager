@@ -340,23 +340,43 @@ const AppsListModule = {
   },
 
   toggleMenu(btn) {
-    document.querySelectorAll('.app-card-dropdown--floating').forEach(d => d.remove());
+    this._closeFloatingMenu?.();
     const dropdown = btn.nextElementSibling.cloneNode(true);
     dropdown.classList.add('app-card-dropdown--floating');
     dropdown.classList.add('visible');
     const rect = btn.getBoundingClientRect();
     dropdown.style.position = 'fixed';
-    dropdown.style.top      = (rect.bottom + 4) + 'px';
-    dropdown.style.right    = (window.innerWidth - rect.right) + 'px';
+    dropdown.style.margin = '0';
+    dropdown.style.right = 'auto';
+    dropdown.style.minWidth = '0';
+    dropdown.style.width = Math.min(190, Math.max(0, window.innerWidth - 16)) + 'px';
+    dropdown.style.boxSizing = 'border-box';
+    dropdown.style.maxHeight = Math.max(0, window.innerHeight - 16) + 'px';
+    dropdown.style.overflowY = 'auto';
     dropdown.style.zIndex   = '9999';
     document.body.appendChild(dropdown);
-    const close = (e) => {
-      if (!dropdown.contains(e.target) && e.target !== btn) {
-        dropdown.remove();
-        document.removeEventListener('click', close, true);
-      }
+    const size = dropdown.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom - 12;
+    const above = rect.top - 12;
+    const openAbove = size.height > below && above > below;
+    const top = openAbove ? rect.top - size.height - 4 : rect.bottom + 4;
+    dropdown.style.top = Math.max(8, Math.min(top, window.innerHeight - size.height - 8)) + 'px';
+    dropdown.style.left = Math.max(8, Math.min(rect.right - size.width, window.innerWidth - size.width - 8)) + 'px';
+    const cleanup = () => {
+      dropdown.remove();
+      document.removeEventListener('click', close, true);
+      document.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', cleanup);
+      if (this._closeFloatingMenu === cleanup) this._closeFloatingMenu = null;
     };
-    setTimeout(() => document.addEventListener('click', close, true), 0);
+    const close = (e) => {
+      if (!dropdown.contains(e.target) && !btn.contains(e.target)) cleanup();
+    };
+    const onScroll = e => { if (!dropdown.contains(e.target)) cleanup(); };
+    this._closeFloatingMenu = cleanup;
+    document.addEventListener('click', close, true);
+    document.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', cleanup);
   },
 
   _renderGroupedApps(apps, templates) {

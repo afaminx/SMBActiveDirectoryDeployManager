@@ -145,6 +145,8 @@ const AppsWizardModule = {
       template: initialTemplate,
       wingetId: existingApp?.wingetId || '',
       wingetSource: existingApp?.wingetSource || 'winget',
+      wingetScope: existingApp?.wingetScope || ((existingApp?.wingetSource === 'msstore' || existingApp?.wingetId === 'Spotify.Spotify') ? 'user' : 'machine'),
+      wingetRepair: existingApp?.wingetRepair === true,
       odtConfig: existingApp?.odtConfig || {
         product: 'O365BusinessRetail',
         apps: ['Word', 'Excel', 'PowerPoint', 'Outlook', 'OneNote', 'OneDrive'],
@@ -382,6 +384,10 @@ const AppsWizardModule = {
           const pq = (state.plantillaSearch || '').toLowerCase();
           body += `<div id="wiz-plantilla-results" style="max-height:330px;overflow-y:auto;padding-right:2px;">`;
 
+          if (!pq || 'winget package windows package manager'.includes(pq)) {
+            hasVisibleTemplates = true;
+            body += '<div class="template-grid" style="margin-bottom:16px"><div class="template-card ' + (state.template === 'winget' ? 'selected' : '') + '" data-template="winget"><div class="template-card-icon">&#128230;</div><div class="template-card-name">WinGet Package</div><div class="template-card-desc">' + t('winget.templateHint') + '</div></div></div>';
+          }
           // Office XML template at the top of Plantilla tab
           const officeTmpl = templates.find(tmpl => tmpl.id === 'office');
           if (officeTmpl) {
@@ -508,29 +514,11 @@ const AppsWizardModule = {
 
         if (isWinget) {
           // â”€â”€ Winget mode: info panel + wingetId display â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          const _isMsStoreWiz = (state.wingetSource || '').toLowerCase() === 'msstore';
-          body += `
-          <div style=”padding:12px 14px;background:rgba(108,99,255,0.07);border:1px solid rgba(108,99,255,0.25);border-radius:8px;margin-bottom:12px;”>
-            <div style=”font-weight:600;font-size:13px;margin-bottom:4px;color:var(--primary-color);”>&#128230; Windows Package Manager</div>
-            <p style=”margin:0 0 8px 0;font-size:12px;color:var(--text-secondary);”>${t('gui.installsAutomaticallyUsingWingetNoInstallerDownloadIs')}</p>
-            ${_isMsStoreWiz ? `
-            <div style=”padding:8px 10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);border-radius:6px;margin-bottom:8px;display:flex;gap:8px;align-items:flex-start;”>
-              <span style=”font-size:14px;flex-shrink:0;”>🛒</span>
-              <div style=”font-size:11px;color:var(--text-secondary);line-height:1.5;”>
-                <strong style=”color:var(--text-primary);”>${t('gui.msStoreApp')}</strong>${t('gui.installsInUserScopeMachineScopeIsUnsupported')}<br>
-                ${t('gui.theScriptOmitsScopeMachineAutomaticallyMsStore')}
-              </div>
-            </div>` : ''}
-            <div class=”form-group” style=”margin-bottom:0;”>
-              <label class=”form-label”>Winget ID</label>
-              <input type=”text” class=”form-input” value=”${App._esc(state.wingetId)}” readonly style=”background:var(--bg-tertiary);cursor:default;font-family:monospace;font-size:12px;”>
-            </div>
-            <div class=”form-group” style=”margin-bottom:0;margin-top:8px;”>
-              <label class=”form-label”>Fuente</label>
-              <input type=”text” class=”form-input” value=”${App._esc(state.wingetSource || 'winget')}” readonly style=”background:var(--bg-tertiary);cursor:default;font-family:monospace;font-size:12px;”
-                style=”${_isMsStoreWiz ? 'border-color:rgba(245,158,11,0.5);' : ''}”>
-            </div>
-          </div>`;
+          body += `<div class="form-group"><label class="form-label">${t('winget.packageId')}</label><input class="form-input" id="wiz-winget-id" value="${App._esc(state.wingetId)}" placeholder="Mozilla.Firefox"></div>
+          <div class="form-group"><label class="form-label">${t('winget.source')}</label><select class="form-input" id="wiz-winget-source"><option value="winget" ${state.wingetSource === 'winget' ? 'selected' : ''}>WinGet</option><option value="msstore" ${state.wingetSource === 'msstore' ? 'selected' : ''}>Microsoft Store</option></select></div>
+          <div class="form-group"><label class="form-label">${t('winget.search')}</label><div style="display:flex;gap:8px"><input class="form-input" id="wiz-winget-query" placeholder="Spotify"><button type="button" class="btn btn-secondary" id="wiz-winget-search">${t('winget.search')}</button></div><div id="wiz-winget-matches"></div></div>
+          <div class="form-group"><label class="form-label">${t('winget.scope')}</label><select class="form-input" id="wiz-winget-scope"><option value="user" ${state.wingetScope === 'user' ? 'selected' : ''}>${t('winget.user')}</option>${state.wingetSource !== 'msstore' ? '<option value="machine" ' + (state.wingetScope === 'machine' ? 'selected' : '') + '>' + t('winget.machine') + '</option>' : ''}</select><p>${t('winget.unverified')}</p><p>${state.wingetScope === 'machine' ? t('winget.machineHint') : t('winget.userHint')}</p></div>
+          <label><input type="checkbox" id="wiz-winget-repair" ${state.wingetRepair ? 'checked' : ''}> ${t('winget.repair')}</label><p>${t('winget.repairHint')}</p>`;
 
         } else if (isODT) {
           // â”€â”€ ODT mode: product radio-cards + app chip-toggles + options row â”€â”€
@@ -986,6 +974,7 @@ const AppsWizardModule = {
             </select>
           </div>`;
       } else if (state.step === 4) {
+        if (state.template === 'winget') body += `<div class="form-group"><strong>${t('winget.packageId')}</strong>: ${App._esc(state.wingetId)}<br><strong>${t('winget.source')}</strong>: ${App._esc(state.wingetSource)}<br><strong>${t('winget.scope')}</strong>: ${t(state.wingetScope === 'machine' ? 'winget.machine' : 'winget.user')}<br>${t('winget.repair')}: ${t(state.wingetRepair ? 'common.yes' : 'common.no')}</div>`;
         body += `
           <div class="mb-md">
             <div class="flex items-center gap-md mb-md">
@@ -1075,6 +1064,7 @@ const AppsWizardModule = {
         } else if (catalogType === 'winget') {
           state.template = 'winget';
           state.wingetId = card.dataset.wingetId || '';
+          state.wingetScope = (card.dataset.wingetSource === 'msstore' || state.wingetId === 'Spotify.Spotify') ? 'user' : 'machine';
           state.wingetSource = card.dataset.wingetSource || 'winget';
           state.name = card.dataset.appName || '';
           state.uninstallMode = 'winget';
@@ -1107,6 +1097,7 @@ const AppsWizardModule = {
           state.configXmlPath = '';
         }
         state.template = card.dataset.template;
+        if (state.template === 'winget') state.wingetScope = 'user';
         state.wingetId = '';
         state.wingetSource = 'winget';
         // Auto-fill installer from template pre-configured installer
@@ -1205,6 +1196,27 @@ const AppsWizardModule = {
       });
     });
 
+    document.getElementById('wiz-winget-source')?.addEventListener('change', () => { this.saveStepData(state, templates); renderWizard(); });
+    document.getElementById('wiz-winget-scope')?.addEventListener('change', () => { this.saveStepData(state, templates); renderWizard(); });
+    document.getElementById('wiz-winget-search')?.addEventListener('click', async () => {
+      this.saveStepData(state, templates);
+      const query = document.getElementById('wiz-winget-query')?.value.trim();
+      const resultsBox = document.getElementById('wiz-winget-matches');
+      if (!query || !resultsBox) return;
+      resultsBox.textContent = t('winget.searching');
+      try {
+        const results = await window.api.catalog.searchCLI(query);
+        if (resultsBox !== document.getElementById('wiz-winget-matches')) return;
+        resultsBox.replaceChildren();
+        for (const item of results) {
+          const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-secondary';
+          button.textContent = item.name + ' — ' + item.wingetId + (item.version ? ' (' + item.version + ')' : '') + ' [' + (item.wingetSource || 'winget') + ']';
+          button.addEventListener('click', () => { this.saveStepData(state, templates); state.wingetId = item.wingetId; state.wingetSource = item.wingetSource || 'winget'; state.name = item.name || state.name; state.wingetScope = 'user'; renderWizard(); });
+          resultsBox.appendChild(button);
+        }
+        if (!results.length) resultsBox.textContent = t('winget.noResults');
+      } catch (error) { resultsBox.textContent = t('winget.searchFailed') + ': ' + error.message; }
+    });
     // Navigation
     const nextBtn = document.getElementById('wiz-next');
     const prevBtn = document.getElementById('wiz-prev');
@@ -1216,6 +1228,7 @@ const AppsWizardModule = {
 
         // Validate step 2 before advancing
         if (state.step === 2) {
+          if (state.template === 'winget' && !/^[A-Za-z0-9][A-Za-z0-9.+_-]*$/.test(state.wingetId)) { App.toast(t('winget.invalidId'), 'warning'); return; }
           const requiresAdvancedValidation = !state.simpleModeFlow;
           if (!state.name.trim()) {
             App.toast(t('apps.nameRequired'), 'warning');
@@ -1539,6 +1552,11 @@ const AppsWizardModule = {
 
   saveStepData(state, templates) {
     // Always try to save all visible inputs regardless of step
+    for (const [id, key] of [['wiz-winget-id','wingetId'],['wiz-winget-source','wingetSource'],['wiz-winget-scope','wingetScope']]) {
+      const input = document.getElementById(id); if (input) state[key] = input.value.trim();
+    }
+    const wingetRepair = document.getElementById('wiz-winget-repair'); if (wingetRepair) state.wingetRepair = wingetRepair.checked;
+    if (state.wingetSource === 'msstore') state.wingetScope = 'user';
     const nameInput = document.getElementById('wiz-name');
     if (nameInput) state.name = nameInput.value;
 
@@ -1998,7 +2016,7 @@ const AppsWizardModule = {
           <div style="font-weight:600; font-size:13px; color:var(--text-secondary); margin-bottom:4px;">${t('apps.detailSectionGeneral')}</div>
           ${row(t('apps.detailTemplate'), App._esc(templateInfo.name))}
           ${state.template === 'winget'
-            ? row('Winget ID', `<code style="background:var(--bg-tertiary); padding:2px 6px; border-radius:4px; font-size:12px;">${App._esc(state.wingetId || '-')}</code>`)
+            ? row(t('winget.scope'), App._esc(state.wingetScope === 'machine' ? t('winget.machine') : t('winget.user'))) + row(t('winget.repair'), state.wingetRepair ? t('common.yes') : t('common.no')) + row('Winget ID', `<code style="background:var(--bg-tertiary); padding:2px 6px; border-radius:4px; font-size:12px;">${App._esc(state.wingetId || '-')}</code>`)
             : state.template === 'odt'
               ? row('Producto ODT', `<code style="background:var(--bg-tertiary); padding:2px 6px; border-radius:4px; font-size:12px;">${App._esc((state.odtConfig?.product || 'O365BusinessRetail') + ' · ' + (state.odtConfig?.channel || 'MonthlyEnterprise'))}</code>`)
               : row(t('apps.detailInstallerType'), installerType)
@@ -2107,6 +2125,8 @@ const AppsWizardModule = {
       const appData = {
         name: state.name.trim(),
         template: state.template,
+        wingetScope: state.wingetScope,
+        wingetRepair: state.wingetRepair,
         installerType: AppUtils.getInstallerTypeFromPath(state.installerPath, state.template),
         silentArgs: state.silentArgs,
         installerPath: state.installerPath,
@@ -2144,8 +2164,8 @@ const AppsWizardModule = {
             name: state.name.trim()
           });
           if (resolvedWinget?.available && resolvedWinget.wingetId) {
-            appData.wingetId = resolvedWinget.wingetId;
-            appData.wingetSource = resolvedWinget.wingetSource || state.wingetSource || 'winget';
+            appData.wingetId = state.wingetId;
+            appData.wingetSource = state.wingetSource || 'winget';
             if (!state.version && resolvedWinget.latestVersion) {
               appData.version = resolvedWinget.latestVersion;
             }

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const GENERATOR_REVISION = 'mod-rev-2.1';
 
 function getCurrentAppVersion() {
   try {
@@ -24,5 +25,7 @@ function getCurrentAppVersion() {
 }
 
 module.exports = {
-  getCurrentAppVersion
+  getCurrentAppVersion,
+  getCurrentForkVersion: () => GENERATOR_REVISION.replace(/^mod-rev-/, ''),
+  getCurrentGeneratorRevision: () => GENERATOR_REVISION
 };

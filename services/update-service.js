@@ -9,6 +9,9 @@ function normalizeVersion(raw) {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 
+  const forkRevision = trimmed.match(/mod-rev-(\d+(?:\.\d+)*)/i);
+  if (forkRevision) return forkRevision[1];
+
   const withoutPrefix = trimmed.replace(/^[vV]/, '');
   const match = withoutPrefix.match(/\d+(?:\.\d+)*/);
   return match ? match[0] : null;

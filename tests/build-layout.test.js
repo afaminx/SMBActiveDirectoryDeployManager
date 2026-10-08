@@ -31,16 +31,16 @@ describe('clean fork build layout', () => {
   it('keeps binaries outside the existing GitHub checkout', () => {
     const workspace = path.resolve('fixture-workspace');
     const opts = simulate(path.join(workspace, 'codex', 'gitpub', 'SMBActiveDirectoryDeployManager'));
-    expect(opts.config.directories.output).toBe(path.join(workspace, 'codex', 'bin', 'mod-rev-1.8'));
+    expect(opts.config.directories.output).toBe(path.join(workspace, 'codex', 'bin', 'mod-rev-2.1'));
   });
   it('uses the shared codex root for a revision source directory', () => {
     const workspace = path.resolve('fixture-workspace');
-    const opts = simulate(path.join(workspace, 'codex', 'src', 'mod-rev-1.8'));
-    expect(opts.config.directories.output).toBe(path.join(workspace, 'codex', 'bin', 'mod-rev-1.8'));
+    const opts = simulate(path.join(workspace, 'codex', 'src', 'mod-rev-2.1'));
+    expect(opts.config.directories.output).toBe(path.join(workspace, 'codex', 'bin', 'mod-rev-2.1'));
   });
   it('creates local codex output in a standalone fork clone', () => {
     const root = path.resolve('standalone-fork');
-    expect(simulate(root).config.directories.output).toBe(path.join(root, 'codex', 'bin', 'mod-rev-1.8'));
+    expect(simulate(root).config.directories.output).toBe(path.join(root, 'codex', 'bin', 'mod-rev-2.1'));
   });
   it('refuses to overwrite an existing build before invoking the builder', () => {
     expect(() => simulate(path.resolve('standalone-fork'), true)).toThrow('Build output already exists');

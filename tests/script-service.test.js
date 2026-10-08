@@ -47,6 +47,14 @@ vi.mock('../services/template-service', () => ({
 const svc = require('../services/script-service');
 
 describe('deployment script diagnostics', () => {
+  it('emits English comments for every built-in template and preserves custom code', () => {
+    for (const template of svc.getTemplateList().filter(item => !item.isUserDefined)) {
+      const script = svc.generateScript(base({ template: template.id, wingetId: 'Mozilla.Firefox' }));
+      expect(script, template.id).not.toMatch(/PLANTILLA|Versión:|Generado:|Guardia|Limpieza|Comprobar|Localizar|ADVERTENCIA|Canal:|Idioma:|Intento|Detección|Leer manifiesto|Copiar a cache/);
+    }
+    const code = '# Comentario personalizado\nWrite-Output "Texto del usuario"';
+    expect(svc.generateScript(base({ template: 'custom', customParams: { customScript: code } }))).toContain(code);
+  });
   it('parses generated install/uninstall scripts after translating their diagnostics', () => {
     const fs = require('fs');
     const path = require('path');
@@ -224,74 +232,24 @@ describe('generateScript — wazuh template', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 describe('generateScript — winget template', () => {
-  it('embeds the winget package id', () => {
-    const script = svc.generateScript(base({
-      template: 'winget',
-      wingetId: 'Mozilla.Firefox'
-    }));
-    expect(script).toContain('Mozilla.Firefox');
+  it('uses the supported module for machine scope and never falls back to user', () => {
+    const script=svc.generateScript(base({template:'winget',wingetId:'Google.Chrome',wingetScope:'machine'}));
+    expect(script).toContain('Install-WinGetPackage'); expect(script).toContain('-Scope System');
+    expect(script).toContain('PowerShell 7 is required'); expect(script).toContain('-MTA');
+    expect(script).not.toContain('--scope machine');
   });
-
-  it('embeds the configured winget source', () => {
-    const script = svc.generateScript(base({
-      template: 'winget',
-      wingetId: '9NKSQGP7F2NH',
-      wingetSource: 'msstore'
-    }));
-    expect(script).toContain('$wingetSource = "msstore"');
-    expect(script).toContain('--source "$wingetSource"');
+  it('retains a group task for later users and tracks each user independently', () => {
+    const script=svc.generateScript(base({template:'winget',wingetId:'Spotify.Spotify',wingetScope:'user'}));
+    expect(script).toContain('-GroupId "S-1-5-4"'); expect(script).toContain('LOCALAPPDATA');
+    expect(script).toContain('exit 60001'); expect(script).not.toContain('Unregister-ScheduledTask');
+    expect(script).toContain('--scope user'); expect(script).toContain('Test-UserPackage');
   });
-
-  it('includes --scope machine flag', () => {
-    const script = svc.generateScript(base({
-      template: 'winget',
-      wingetId: 'Google.Chrome'
-    }));
-    expect(script).toContain('--scope machine');
-  });
-
-  it('embeds the version from cfg', () => {
-    const script = svc.generateScript(base({
-      template: 'winget',
-      wingetId: 'Notepad++.Notepad++',
-      version: '8.6.0'
-    }));
-    expect(script).toContain('8.6.0');
-  });
-
-  it('creates a hidden interactive user task that self-cleans when the app is already installed', () => {
-    const script = svc.generateScript(base({
-      template: 'winget',
-      wingetId: 'Spotify.Spotify'
-    }));
-    expect(script).toContain('NT AUTHORITY\\INTERACTIVE');
-    expect(script).toContain('-LogonType Interactive');
-    expect(script).toContain('LOCALAPPDATA');
-    expect(script).toContain('wscript.exe');
-    expect(script).toContain('Test-WingetPackageInstalled');
-    expect(script).toContain("@('list', '--id', \"$PackageId\", '--exact'");
-    expect(script).toContain('Complete-UserWingetTask');
-    expect(script).toContain('Unregister-ScheduledTask');
-    expect(script).toContain('Clear-UserWingetArtifacts');
-    expect(script).toContain('WingetUserInstall_');
-    expect(script).toContain('Register-ScheduledTask');
-    expect(script).toContain('-ErrorAction Stop');
-  });
-
-  it('verifies the package is really installed before trusting success or stale trackers', () => {
-    const script = svc.generateScript(base({
-      template: 'winget',
-      wingetId: 'Spotify.Spotify'
-    }));
-    expect(script).toContain('function Wait-WingetPackageInstalled');
-    expect(script).toContain('Tracker reported success, but $wingetId is not installed');
-    expect(script).toContain('Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource');
-    expect(script).toContain('winget completed without a blocking error, but the installation could not be confirmed');
-    expect(script).toContain("if (($ec -in $successCodes) -and (Wait-WingetPackageInstalled -WingetPath $WingetUser -PackageId $wingetId -PackageSource $wingetSource))");
+  it('rejects invalid IDs and Store machine scope', () => {
+    expect(()=>svc.generateScript(base({template:'winget',wingetId:'x; Remove-Item'}))).toThrow();
+    expect(()=>svc.generateScript(base({template:'winget',wingetId:'9ABC',wingetSource:'msstore',wingetScope:'machine'}))).toThrow();
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
 describe('generateScript — odt template', () => {
   it('embeds the product id', () => {
     const script = svc.generateScript(base({
@@ -578,8 +536,8 @@ describe('generateUninstallScript', () => {
       wingetSource: 'winget'
     }));
 
-    expect(script).toContain('Resolve-WingetPath');
+    expect(script).toContain('Uninstall-WinGetPackage');
     expect(script).toContain('Mozilla.Firefox');
-    expect(script).toContain("uninstall', '--id', $wingetId");
+    expect(script).toContain("$cfg.action, '--id', $cfg.id");
   });
 });

@@ -39,6 +39,7 @@ function decorateGeneratedPowerShellScript(scriptBody, options = {}) {
     appName ? `# app_name: ${appName}` : '',
     '# =========================================================================',
     `$ADDMGeneratorAppVersion = "${generatorVersion}"`,
+    '$ADDMGeneratorRevision = "mod-rev-2.1"',
     `$ADDMGeneratedScriptKind = "${scriptKind}"`,
     appName ? `$ADDMGeneratedAppName = "${appName}"` : '',
     ''
@@ -61,6 +62,7 @@ function buildManifestScriptInfo(existingInfo = {}, details = {}) {
   return {
     path: pathValue,
     generatedAt,
+    generatedByRevision: details.written ? 'mod-rev-2.1' : (existingInfo.generatedByRevision || ''),
     generatedByAppVersion
   };
 }
@@ -463,6 +465,10 @@ function buildAppDeploymentManifest(appConfig, details = {}) {
       ? sanitizeTemplateFileName(path.basename(appConfig.installerPath))
       : '',
     template: appConfig.template || 'generic',
+    wingetId: appConfig.wingetId || '',
+    wingetSource: appConfig.wingetSource || 'winget',
+    wingetScope: appConfig.wingetScope || ((appConfig.wingetSource === 'msstore' || appConfig.wingetId === 'Spotify.Spotify') ? 'user' : 'machine'),
+    wingetRepair: appConfig.wingetRepair === true,
     templateSource: details.customTemplate ? 'user' : 'builtin',
     notifyUser: appConfig.notifyUser || false,
     appVersion: generatorAppVersion,
@@ -600,7 +606,7 @@ if (-not (Test-AppPresentForUninstall)) {
 # ${title} - DROP & RUN
 # App: ${safeName}
 # Version: ${version}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
     Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { }
@@ -731,9 +737,7 @@ function Resolve-MsiProductCode {
         if ($entry.NormalizedDisplayName -eq $normalizedName) {
             return [string]$entry.ProductCode
         }
-        if ($normalizedName.Length -ge 8 -and ($entry.NormalizedDisplayName.StartsWith($normalizedName) -or $normalizedName.StartsWith($entry.NormalizedDisplayName))) {
-            return [string]$entry.ProductCode
-        }
+
     }
 
     return ''
@@ -835,8 +839,7 @@ function Resolve-RegistryUninstallEntry {
         if ($normalizedName) {
             if ($entry.NormalizedDisplayName -eq $normalizedName) {
                 $score = [Math]::Max($score, 85)
-            } elseif ($normalizedName.Length -ge 8 -and ($entry.NormalizedDisplayName.StartsWith($normalizedName) -or $normalizedName.StartsWith($entry.NormalizedDisplayName))) {
-                $score = [Math]::Max($score, 70)
+
             }
         }
 
@@ -979,85 +982,7 @@ function generateManualUninstallScript(appConfig, uninstallConfig) {
 }
 
 function generateWingetUninstallScript(appConfig, uninstallConfig) {
-  const wingetId = sanitizePSForEmbedding(uninstallConfig.wingetId || appConfig?.wingetId || '');
-  const wingetSource = sanitizePSForEmbedding(uninstallConfig.wingetSource || appConfig?.wingetSource || 'winget');
-  const extraFunctions = `
-function Resolve-WingetPath {
-    $candidates = @(
-        (Join-Path $env:LOCALAPPDATA 'Microsoft\\WindowsApps\\winget.exe'),
-        (Join-Path $env:ProgramFiles 'WindowsApps\\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\\winget.exe'),
-        'winget.exe'
-    )
-
-    foreach ($candidate in $candidates) {
-        try {
-            $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
-            if ($cmd) { return $cmd.Source }
-        } catch {}
-        if ($candidate -ne 'winget.exe' -and (Test-Path -LiteralPath $candidate)) {
-            return $candidate
-        }
-    }
-
-    return $null
-}
-
-function Test-WingetPackageInstalled {
-    param(
-        [string]$WingetPath,
-        [string]$PackageId,
-        [string]$PackageSource
-    )
-
-    if (-not $WingetPath -or -not $PackageId) { return $false }
-    $args = @('list', '--id', $PackageId, '--exact', '--accept-source-agreements')
-    if ($PackageSource) { $args += @('--source', $PackageSource) }
-
-    try {
-        $output = & $WingetPath @args 2>$null
-        return [string]::Join("\`n", $output) -match [regex]::Escape($PackageId)
-    } catch {
-        return $false
-    }
-}`.trim();
-
-  const body = `    $wingetId = "${wingetId}"
-    $wingetSource = "${wingetSource}"
-    if (-not $wingetId) {
-        throw "No winget package ID is configured"
-    }
-
-    $Winget = Resolve-WingetPath
-    if (-not $Winget) {
-        throw "winget.exe was not found on this computer"
-    }
-
-    if (-not (Test-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource)) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: $wingetId is no longer installed"
-        Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ wingetId = $wingetId; note = 'already-absent' }
-        Stop-Transcript -ErrorAction SilentlyContinue
-        exit 0
-    }
-
-    $args = @('uninstall', '--id', $wingetId, '--exact', '--silent', '--accept-source-agreements', '--disable-interactivity')
-    if ($wingetSource) { $args += @('--source', $wingetSource) }
-
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Running: winget $($args -join ' ')"
-    & $Winget @args 2>&1 | Out-Null
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -notin @(0, 1605, 1614)) {
-        throw "winget returned $exitCode"
-    }
-
-    Save-UninstallTracker -Result 'removed' -Method $UninstallMode -Extra @{ wingetId = $wingetId; source = $wingetSource }
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Winget uninstalled"
-    Stop-Transcript -ErrorAction SilentlyContinue
-    exit 0`;
-
-  return buildUninstallScriptShell(appConfig, uninstallConfig, body, {
-    title: 'WINGET UNINSTALL',
-    extraFunctions
-  });
+  return require('./winget-deployment').generate({ ...appConfig, wingetId: uninstallConfig.wingetId || appConfig.wingetId, wingetSource: uninstallConfig.wingetSource || appConfig.wingetSource }, 'uninstall', getDedicatedRuntimeDetectionLogic());
 }
 
 function sanitizeTemplateFileName(fileName) {
@@ -1455,6 +1380,18 @@ function Get-MsiPackageProperty {
     return ''
 }
 
+
+function Get-MsiRelatedProductCodes {
+    param([string]$UpgradeCode)
+    if (-not $UpgradeCode) { return @() }
+    $installer = $null
+    try {
+        $installer = New-Object -ComObject WindowsInstaller.Installer
+        return @($installer.GetType().InvokeMember('RelatedProducts', 'GetProperty', $null, $installer, @($UpgradeCode)) | ForEach-Object { [string]$_ })
+    } catch { return @() }
+    finally { if ($installer) { try { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($installer) | Out-Null } catch {} } }
+}
+
 function Get-InstallerDetectionMetadata {
     param(
         [string]$InstallerPath,
@@ -1465,6 +1402,8 @@ function Get-InstallerDetectionMetadata {
     $displayCandidates = New-Object System.Collections.Generic.List[string]
     $normalizedCandidates = New-Object System.Collections.Generic.List[string]
     $productCode = ''
+    $upgradeCode = ''
+    $relatedProductCodes = @()
     $publisher = ''
     $productVersionRaw = ''
 
@@ -1476,6 +1415,8 @@ function Get-InstallerDetectionMetadata {
         $productVersionRaw = Get-MsiPackageProperty -Path $InstallerPath -PropertyName 'ProductVersion'
         $publisher = Get-MsiPackageProperty -Path $InstallerPath -PropertyName 'Manufacturer'
         $productCode = Get-MsiPackageProperty -Path $InstallerPath -PropertyName 'ProductCode'
+        $upgradeCode = Get-MsiPackageProperty -Path $InstallerPath -PropertyName 'UpgradeCode'
+        $relatedProductCodes = @(Get-MsiRelatedProductCodes -UpgradeCode $upgradeCode)
     } else {
         $fileInfo = $null
         try { $fileInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($InstallerPath) } catch {}
@@ -1513,6 +1454,8 @@ function Get-InstallerDetectionMetadata {
         Publisher = $publisher
         PublisherNormalized = Normalize-DetectedAppName -Value $publisher
         ProductCode = $productCode
+        UpgradeCode = $upgradeCode
+        RelatedProductCodes = $relatedProductCodes
         InstallerVersionRaw = $productVersionRaw
         InstallerVersionObject = Convert-DetectedAppVersion -Value $productVersionRaw
     }
@@ -1529,19 +1472,19 @@ function Get-InstalledApplicationMatch {
         $score = 0
         $publisherMatched = $false
 
-        if ($InstallerMetadata.ProductCode -and $entry.ProductCode -and $InstallerMetadata.ProductCode -eq $entry.ProductCode) {
-            $score = 100
-        }
+        $sameProduct = $InstallerMetadata.ProductCode -and $entry.ProductCode -and $InstallerMetadata.ProductCode -eq $entry.ProductCode
+        $relatedProduct = $entry.ProductCode -and @($InstallerMetadata.RelatedProductCodes) -contains $entry.ProductCode
+        if ($InstallerMetadata.Extension -eq '.msi' -and $InstallerMetadata.ProductCode -and -not ($sameProduct -or $relatedProduct)) { continue }
+        if ($sameProduct) { $score = 100 } elseif ($relatedProduct) { $score = 95 }
 
         foreach ($candidate in @($InstallerMetadata.NameCandidates)) {
             if (-not $candidate) { continue }
             if ($entry.NormalizedDisplayName -eq $candidate) {
                 $score = [Math]::Max($score, 85)
-            } elseif ($candidate.Length -ge 8 -and ($entry.NormalizedDisplayName.StartsWith($candidate) -or $candidate.StartsWith($entry.NormalizedDisplayName))) {
-                $score = [Math]::Max($score, 70)
             }
         }
 
+        if ($score -lt 95 -and $InstallerMetadata.PublisherNormalized -and $entry.PublisherNormalized -and $entry.PublisherNormalized -ne $InstallerMetadata.PublisherNormalized) { continue }
         if ($InstallerMetadata.PublisherNormalized -and $entry.PublisherNormalized -eq $InstallerMetadata.PublisherNormalized) {
             $publisherMatched = $true
             if ($score -gt 0) {
@@ -1576,10 +1519,8 @@ function Resolve-InstallerConflictState {
         [string]$TargetVersion
     )
 
-    $targetVersionObject = Convert-DetectedAppVersion -Value $TargetVersion
-    if (-not $targetVersionObject -and $InstallerMetadata.InstallerVersionObject) {
-        $targetVersionObject = $InstallerMetadata.InstallerVersionObject
-    }
+    $targetVersionObject = $InstallerMetadata.InstallerVersionObject
+    if (-not $targetVersionObject) { $targetVersionObject = Convert-DetectedAppVersion -Value $TargetVersion }
 
     $match = Get-InstalledApplicationMatch -InstallerMetadata $InstallerMetadata
     $skipInstall = $false
@@ -1592,7 +1533,7 @@ function Resolve-InstallerConflictState {
             ($match.PublisherMatched -and $match.MatchScore -ge 75)
         )
 
-        if ($InstallerMetadata.ProductCode -and $match.ProductCode -and $InstallerMetadata.ProductCode -eq $match.ProductCode) {
+        if ($InstallerMetadata.ProductCode -and $match.ProductCode -and $InstallerMetadata.ProductCode -eq $match.ProductCode -and (-not $targetVersionObject -or ($match.VersionObject -and $match.VersionObject -ge $targetVersionObject))) {
             $skipInstall = $true
             $reason = 'same-product-code'
         } elseif ($match.VersionObject -and $targetVersionObject -and $match.VersionObject -ge $targetVersionObject) {
@@ -1697,18 +1638,13 @@ function Test-ManagedInstallerInstalled {
 
     $match = Get-InstalledApplicationMatch -InstallerMetadata $InstallerMetadata
     if (-not $match) { return $false }
-    if ($InstallerMetadata.ProductCode -and $match.ProductCode -and $InstallerMetadata.ProductCode -eq $match.ProductCode) {
-        return $true
-    }
-
-    $targetVersionObject = Convert-DetectedAppVersion -Value $TargetVersion
-    if (-not $targetVersionObject -and $InstallerMetadata.InstallerVersionObject) {
-        $targetVersionObject = $InstallerMetadata.InstallerVersionObject
-    }
+    $targetVersionObject = $InstallerMetadata.InstallerVersionObject
+    if (-not $targetVersionObject) { $targetVersionObject = Convert-DetectedAppVersion -Value $TargetVersion }
 
     if ($match.VersionObject -and $targetVersionObject) {
         return ($match.VersionObject -ge $targetVersionObject)
     }
+    if ($targetVersionObject) { return $false }
 
     if ($hasDetectionRule) { return $false }
     if ($match.MatchScore -ge 85) { return $true }
@@ -1754,7 +1690,7 @@ function Invoke-ManagedInstaller {
     $conflictState = Resolve-InstallerConflictState -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion
 
     if ($conflictState.SkipInstall) {
-        $InstallDisposition = 'skipped'
+        $script:InstallDisposition = 'skipped'
         $conflictLabel = Get-InstallerConflictLabel -Conflict $conflictState
         if ($conflictLabel) {
             Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: An equal or newer version of $conflictLabel is already installed. Skipping the installer."
@@ -1785,7 +1721,7 @@ function Invoke-ManagedInstaller {
 
         if ($SuccessCodes -contains $process.ExitCode) {
             if (Wait-ManagedInstallerInstalled -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion) {
-                $InstallDisposition = 'installed'
+                $script:InstallDisposition = 'installed'
                 return [pscustomobject]@{ Status = 'success'; ExitCode = $process.ExitCode; Attempts = $attempt; Retried = ($attempt -gt 1) }
             }
 
@@ -1804,7 +1740,7 @@ function Invoke-ManagedInstaller {
             $conflictState = Resolve-InstallerConflictState -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion
 
             if ($conflictState.SkipInstall) {
-                $InstallDisposition = 'skipped'
+                $script:InstallDisposition = 'skipped'
                 $conflictLabel = Get-InstallerConflictLabel -Conflict $conflictState
                 if ($conflictLabel) {
                     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Conflict 1638 resolved. A valid version is already installed for $conflictLabel."
@@ -1838,7 +1774,7 @@ function Invoke-ManagedInstaller {
                 Reset-InstalledApplicationEntriesCache
                 if ($SuccessCodes -contains $retryProcess.ExitCode) {
                     if (Wait-ManagedInstallerInstalled -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion) {
-                        $InstallDisposition = 'installed'
+                        $script:InstallDisposition = 'installed'
                         return [pscustomobject]@{ Status = 'success'; ExitCode = $retryProcess.ExitCode; Attempts = $attempt; Retried = $true }
                     }
 
@@ -1849,7 +1785,7 @@ function Invoke-ManagedInstaller {
 
                 if (Wait-ManagedInstallerInstalled -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion -MaxAttempts 2 -SleepSeconds 5) {
                     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: The installer returned code $($retryProcess.ExitCode) after resolving conflict 1638, but the app was installed. Treating this as success."
-                    $InstallDisposition = 'installed'
+                    $script:InstallDisposition = 'installed'
                     return [pscustomobject]@{ Status = 'success'; ExitCode = $retryProcess.ExitCode; Attempts = $attempt; Retried = $true }
                 }
 
@@ -1867,7 +1803,7 @@ function Invoke-ManagedInstaller {
 
         if (Wait-ManagedInstallerInstalled -InstallerMetadata $installerMetadata -TargetVersion $CurrentVersion -MaxAttempts 2 -SleepSeconds 5) {
             Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: The installer returned code $($process.ExitCode), but the app was installed. Treating this as success."
-            $InstallDisposition = 'installed'
+            $script:InstallDisposition = 'installed'
             return [pscustomobject]@{ Status = 'success'; ExitCode = $process.ExitCode; Attempts = $attempt; Retried = ($attempt -gt 1) }
         }
 
@@ -1971,12 +1907,12 @@ function generateUserTemplate(cfg, template) {
 # Template: ${sanitizeAppName(template.name)}
 # App: ${safeName}
 # Version: ${cfg.version || '1.0.0'}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 $BaseSilentArgs = "${silentArgs}"
 
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic(undefined, notify, safeName)}
 $TemplateValues = ${templateValuesObject}
@@ -2034,7 +1970,7 @@ function buildDetectionSnippet(cfg) {
 function Test-AppInstalled {
     $pc = if ($Manifest) { [string]($Manifest.productCode) } else { '' }
     if (-not $pc -and $TrackerFile -and (Test-Path -LiteralPath $TrackerFile)) {
-        try { $t = Get-Content -LiteralPath $TrackerFile -Raw | ConvertFrom-Json; $pc = [string]($t.detectedProductCode) } catch {}
+        try { $t = Get-Content -LiteralPath $TrackerFile -Raw | ConvertFrom-Json; if ($t.generatorRevision -eq $ADDMGeneratorRevision) { $pc = [string]($t.detectedProductCode) } } catch {}
     }
     if (-not $pc) { return $false }
     $paths = @(
@@ -2219,9 +2155,9 @@ if (-not $DepReady) {
         Stop-Transcript -ErrorAction SilentlyContinue
         exit 1
     } else {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Skipping this installation until the dependency finishes."
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] PENDING: Skipping this installation until the dependency finishes."
         Stop-Transcript -ErrorAction SilentlyContinue
-        exit 0
+        exit 60001
     }
 }
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Dependency '$DepName' is ready."
@@ -2263,6 +2199,7 @@ function getDedicatedRuntimeDetectionLogic() {
     '}',
     'function Save-AppDeployTracker {',
     '    param([hashtable]$Payload)',
+    '    $Payload.generatorRevision = $ADDMGeneratorRevision',
     '    if (-not $TrackerFile) { return }',
     '    try { $Payload | ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8 } catch { }',
     '}',
@@ -2359,7 +2296,7 @@ function getLocalCachingLogic(filter = "\\.(exe|msi)$", notifyUser = false, appD
   const depWait = buildDependencyWaitSnippet(appCtx);
   const detectionFn = buildDetectionSnippet(appCtx);
   const detectionCall = detectionFn ? `
-# ── Detección de instalación previa (regla definida por el usuario) ─────────
+# ── Detect an existing installation (user-defined rule) ─────────
 if (Test-AppInstalled) {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Detection rule confirms that the app is already installed."
     Save-AppDeployTracker -Payload @{ version = $CurrentVersion; hash = $CurrentHash; installedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'success'; method = 'detection-rule' }
@@ -2368,7 +2305,7 @@ if (Test-AppInstalled) {
     exit 0
 }` : '';
   return [
-    '# ── Guardia $PSScriptRoot (puede estar vacío en GPO startup / PS4) ────────',
+    '# ── $PSScriptRoot fallback (may be empty during GPO startup / PS4) ────────',
     'if (-not $PSScriptRoot) { $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }',
     'if (-not $PSScriptRoot) { $PSScriptRoot = $PWD.Path }',
     '',
@@ -2377,10 +2314,10 @@ if (Test-AppInstalled) {
     '# ── Logging ────────────────────────────────────────────────────────────',
     '$LogDir = "C:\\ProgramData\\AppDeploy_Logs"',
     'if (-not $ADDMDedicatedLogging -and -not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }',
-    '# ── Limpieza de logs antiguos (>7 días) ─────────────────────────────────',
+    '# ── Remove old logs (>7 days) ─────────────────────────────────',
     'if (-not $ADDMDedicatedLogging) { Get-ChildItem "$LogDir\\*.log" -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force -ErrorAction SilentlyContinue }',
     '',
-    '# Split-Path es pura string — no necesita acceso de red (evita fallo si el share aún no responde)',
+    '# Split-Path only handles strings; it does not require network access while the share is unavailable',
     '$NombreApp = if ($PSScriptRoot) { Split-Path -Leaf $PSScriptRoot } else { "UnknownApp" }',
     '$LogFile   = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Install_$($NombreApp)_$(Get-Date -Format \'yyyyMMdd_HHmmss\').log" }',
     'if ($LogFile) { Start-Transcript -Path $LogFile -Force -ErrorAction SilentlyContinue }',
@@ -2400,12 +2337,12 @@ if (Test-AppInstalled) {
     depWait,
     getDeployCacheCleanupLogic(),
     '',
-    '# ── Leer manifiesto ─────────────────────────────────────────────────────',
+    '# ── Read manifest ─────────────────────────────────────────────────────',
     '$VersionFile = Join-Path $PSScriptRoot "version.json"',
     'if (-not (Test-Path $VersionFile)) {',
     '    Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] SKIPPED: version.json was not found in $PSScriptRoot"',
     '    Stop-Transcript -ErrorAction SilentlyContinue',
-    '    exit 0',
+    '    exit 1',
     '}',
     'try {',
     '    $Manifest       = Get-Content $VersionFile -Raw | ConvertFrom-Json',
@@ -2424,17 +2361,17 @@ if (Test-AppInstalled) {
     '',
     detectionFn,
     detectionCall,
-    '# ── Comprobar si ya instalado ────────────────────────────────────────────',
+    '# ── Check whether already installed ────────────────────────────────────────────',
     'if ($TrackerFile -and (Test-Path -LiteralPath $TrackerFile)) {',
     '    try {',
     '        $t = Get-Content -LiteralPath $TrackerFile -Raw | ConvertFrom-Json',
-    '        if ($t.hash -eq $CurrentHash -and $t.result -eq \'success\') {',
+    '        if ($t.hash -eq $CurrentHash -and $t.result -eq \'success\' -and $t.generatorRevision -eq $ADDMGeneratorRevision) {',
     '            Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] SKIPPED: Already installed (v$($t.version), matching hash)"',
     '            Send-AppDeployLog -Level "info" -Source "install" -Message "install_skipped" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; reason = "tracker-success" }',
     '            Stop-Transcript -ErrorAction SilentlyContinue',
     '            exit 0',
     '        }',
-    '        if ($t.hash -eq $CurrentHash -and $t.result -eq \'failed\') {',
+    '        if ($t.hash -eq $CurrentHash -and $t.result -eq \'failed\' -and $t.generatorRevision -eq $ADDMGeneratorRevision) {',
     '            $PreviousFailureCount = 1',
     '            if ($null -ne $t.retryCount) {',
     '                try { $PreviousFailureCount = [Math]::Max([int]$t.retryCount, 1) } catch { $PreviousFailureCount = 1 }',
@@ -2443,7 +2380,7 @@ if (Test-AppInstalled) {
     '                Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] SKIPPED: Installation has failed $PreviousFailureCount times with this hash. Update the app or review the installer before resetting retries."',
     '                Send-AppDeployLog -Level "warn" -Source "install" -Message "install_skipped" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; reason = "max-retries"; retryCount = $PreviousFailureCount }',
     '                Stop-Transcript -ErrorAction SilentlyContinue',
-    '                exit 0',
+    '                exit 1',
     '            }',
     '            $TrackerRetryBase = $PreviousFailureCount',
     '            Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] WARNING: Installation previously failed with this hash (attempt $($PreviousFailureCount + 1)/$ManagedInstallerMaxAttempts). Retrying."',
@@ -2454,7 +2391,7 @@ if (Test-AppInstalled) {
     '    }',
     '}',
     '',
-    '# ── Localizar instalador en share ────────────────────────────────────────',
+    '# ── Find installer on share ────────────────────────────────────────',
     'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Looking for the installer on the share..."',
     '$InstaladorRed = $null',
     'if ($PrimaryInstallerName) {',
@@ -2479,7 +2416,7 @@ if (Test-AppInstalled) {
     '}',
     'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Installer: $($InstaladorRed.Name) ($([Math]::Round($InstaladorRed.Length/1MB,1)) MB)"',
     '',
-    '# ── Copiar a cache local ─────────────────────────────────────────────────',
+    '# ── Copy to local cache ─────────────────────────────────────────────────',
     '$CacheDir = "C:\\Temp\\Deploy\\$NombreApp"',
     'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Copying to cache: $CacheDir"',
     'try {',
@@ -2493,7 +2430,7 @@ if (Test-AppInstalled) {
     '    exit 1',
     '}',
     '',
-    '# ── Localizar instalador en cache ────────────────────────────────────────',
+    '# ── Find installer in cache ────────────────────────────────────────',
     '$Instalador = $null',
     'if ($PrimaryInstallerName) {',
     '    $PrimaryInstallerCachePath = Join-Path -Path $CacheDir -ChildPath $PrimaryInstallerName',
@@ -2513,7 +2450,7 @@ if (Test-AppInstalled) {
     '    exit 1',
     '}',
     'Write-Host "[$(Get-Date -Format \'HH:mm:ss\')] Running installation..."',
-    '# NOTA: $PSScriptRoot sigue apuntando al share (solo lectura). Usar $CacheDir para rutas locales.',
+    '# NOTE: $PSScriptRoot still points to the read-only share. Use $CacheDir for local paths.',
     notifyPrefix,
     notifyBefore,
   ].join('\n');
@@ -2531,7 +2468,8 @@ function getTrackerSaveLogic(notifyUser = false, useSnapshotDiff = false) {
     ? `    Send-UserToast -ToastTitle "${ToastTitleDone.replace(/"/g, '\\"')}" -ToastMessage "${ToastMsgDone.replace(/"/g, '\\"')}" -IconType "Information"`
     : '';
   return `
-    # ── Exito ──────────────────────────────────────────────────────────
+    $DeploymentExitCode = 0
+    # ── Success ──────────────────────────────────────────────────────────
     if ($InstallDisposition -eq 'skipped') {
         Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Installer skipped; a valid version was already installed for $NombreApp."
     } else {
@@ -2545,13 +2483,15 @@ ${notifyAfter}
     Invoke-DeployCacheCleanupWithFallback -CacheDir $CacheDir -MarkerPath $CleanupMarkerPath | Out-Null
 
 } catch {
+    $DeploymentExitCode = 1
     # ── Error ──────────────────────────────────────────────────────────
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Failed to install $NombreApp - $_"
     Save-AppDeployTracker -Payload @{ hash = $CurrentHash; version = $CurrentVersion; failedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'failed'; retryCount = ($TrackerRetryBase + 1); error = $_.ToString() }
     Send-AppDeployLog -Level "error" -Source "install" -Message "install_failed" -Context @{ appName = $NombreApp; version = $CurrentVersion; hash = $CurrentHash; retryCount = ($TrackerRetryBase + 1); error = $_.ToString() }
     Invoke-DeployCacheCleanupWithFallback -CacheDir $CacheDir -MarkerPath $CleanupMarkerPath | Out-Null
 }
-Stop-Transcript -ErrorAction SilentlyContinue`;
+Stop-Transcript -ErrorAction SilentlyContinue
+exit $DeploymentExitCode`;
 }
 
 function generateGeneric(cfg) {
@@ -2559,15 +2499,15 @@ function generateGeneric(cfg) {
   const notify = cfg.notifyUser || false;
   const safeName = sanitizeAppName(cfg.name);
   return `# =========================================================================
-# PLANTILLA GENÉRICA "DROP & RUN"
+# GENERIC "DROP & RUN" TEMPLATE
 # App: ${safeName}
-# Versión: ${cfg.version || '1.0.0'}
-# Generado: ${new Date().toISOString()}
+# Version: ${cfg.version || '1.0.0'}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 $ArgumentosExe = "${silentArgs}"
 
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic("\\.(exe|msi|ps1)$", notify, safeName)}
 try {
@@ -2604,12 +2544,12 @@ function generateFreshservice(cfg) {
 # FRESHSERVICE AGENT - DROP & RUN
 # App: ${sanitizeAppName(cfg.name)}
 # Version: ${cfg.version || '1.0.0'}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 $Token = "${token}"
 
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
@@ -2630,12 +2570,12 @@ function generateCrowdstrike(cfg) {
 # CROWDSTRIKE FALCON - DROP & RUN
 # App: ${sanitizeAppName(cfg.name)}
 # Version: ${cfg.version || '1.0.0'}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 $CID = "${cid}"
 
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic("\\.exe$", notify, sanitizeAppName(cfg.name))}
 try {
@@ -2651,10 +2591,10 @@ function generateSapGui(cfg) {
   return `# =========================================================================
 # SAP GUI - DROP & RUN
 # App: ${safeName}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic("\\.exe$", notify, safeName)}
 try {
@@ -2695,13 +2635,13 @@ function generateForticlient(cfg) {
   return `# =========================================================================
 # FORTICLIENT VPN - DROP & RUN
 # App: ${sanitizeAppName(cfg.name)}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 $FcVpnName   = "${vpnName}"
 $FcVpnDesc   = "${vpnDesc}"
 $FcVpnServer = "${vpnServer}"
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, vpnName)}
 try {
@@ -2735,10 +2675,10 @@ function generateOffice(cfg) {
   return `# =========================================================================
 # MICROSOFT OFFICE - DROP & RUN
 # App: ${sanitizeAppName(cfg.name)}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic("\\.exe$", notify, sanitizeAppName(cfg.name))}
 try {
@@ -2760,14 +2700,14 @@ function generateCustom(cfg) {
     return `# =========================================================================
 # SCRIPT CUSTOM - CON INSTALADOR
 # App: ${safeName}
-# Versión: ${cfg.version || '1.0.0'}
-# Generado: ${new Date().toISOString()}
+# Version: ${cfg.version || '1.0.0'}
+# Generated: ${new Date().toISOString()}
 # Variables disponibles: $Instalador, $CacheDir, $CurrentVersion, $ArgumentosExe, $NombreApp
 # =========================================================================
 $ArgumentosExe = "${silentArgs}"
 
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 ${getLocalCachingLogic("\\.(exe|msi|ps1)$", cfg.notifyUser || false, safeName)}
 try {
@@ -2779,8 +2719,8 @@ ${getTrackerSaveLogic(cfg.notifyUser || false)}
   return `# =========================================================================
 # SCRIPT CUSTOM RAW
 # App: ${safeName}
-# Generado: ${new Date().toISOString()}
-# ADVERTENCIA: Este script ejecuta codigo personalizado. Usar con cautela.
+# Generated: ${new Date().toISOString()}
+# WARNING: This script executes custom code. Use with care.
 # =========================================================================
 ${safeCode}
 `;
@@ -2798,7 +2738,7 @@ function generateWazuh(cfg) {
 $WazuhManager = "${manager}"
 $WazuhGroup   = "${group}"
 $WazuhPwd     = "${pwd}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -2844,7 +2784,7 @@ function generateSentinelOne(cfg) {
 # SENTINELONE - DROP & RUN
 # =========================================================================
 $SiteToken = "${st}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -2864,7 +2804,7 @@ function generateCortexXDR(cfg) {
 # CORTEX XDR - DROP & RUN
 # =========================================================================
 $CortexDir = "${dir}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -2885,7 +2825,7 @@ function generateBitdefender(cfg) {
   return `# =========================================================================
 # BITDEFENDER BEST - DROP & RUN
 # =========================================================================
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -2908,7 +2848,7 @@ function generateZscaler(cfg) {
 # =========================================================================
 $ZscCloud  = "${cloud}"
 $ZscDomain = "${domain}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -2931,7 +2871,7 @@ function generateGlobalProtect(cfg) {
 # GLOBALPROTECT - DROP & RUN
 # =========================================================================
 $VpnPortal = "${portal}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -2953,7 +2893,7 @@ function generateCiscoSecureClient(cfg) {
 # CISCO SECURE CLIENT - DROP & RUN
 # =========================================================================
 $XmlProfile = "${xml}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -2984,7 +2924,7 @@ function generateLansweeper(cfg) {
 $LsServer = "${srv}"
 $LsPort   = "${port}"
 $LsKey    = "${key}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     $args = "--mode unattended"
@@ -3002,7 +2942,7 @@ function generateNinjaOne(cfg) {
 # NINJAONE / DATTO RMM - DROP & RUN
 # =========================================================================
 $NinjaTk = "${tk}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -3027,7 +2967,7 @@ function generateTeamViewer(cfg) {
 # =========================================================================
 $TvCid = "${cid}"
 $TvApi = "${api}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -3051,7 +2991,7 @@ function generateAnyDesk(cfg) {
   return `# =========================================================================
 # ANYDESK CUSTOM - DROP & RUN
 # =========================================================================
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -3071,7 +3011,7 @@ function generateVeeam(cfg) {
 # VEEAM AGENT - DROP & RUN
 # =========================================================================
 $XmlProfile = "${xml}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -3099,7 +3039,7 @@ function generateCrashPlan(cfg) {
 # =========================================================================
 $CpUrl   = "${url}"
 $CpToken = "${token}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit }
+If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") { Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 } }
 ${getLocalCachingLogic("\\.(exe|msi)$", notify, sanitizeAppName(cfg.name))}
 try {
     if ($Instalador.Extension -eq ".msi") {
@@ -3117,417 +3057,7 @@ ${getTrackerSaveLogic(notify)}
 `;
 }
 
-function generateWinget(cfg) {
-  const wingetId = sanitizePSForEmbedding(cfg.wingetId || '');
-  const wingetSource = sanitizePSForEmbedding(sanitizeWingetSource(cfg.wingetSource || 'winget'));
-  const version  = sanitizePSForEmbedding(cfg.version || '1.0.0');
-  const notify   = cfg.notifyUser || false;
-  const config   = configService.getConfig();
-  const dict     = i18nService.getTranslations(config.language || 'en');
-  const ToastTitleProcess = dict.apps?.toastTitleProcess || 'Installation in progress';
-  const ToastMsgProcess   = dict.apps?.toastMsgProcess   || 'Installing. Please do not turn off your computer.';
-  const ToastTitleDone    = dict.apps?.toastTitleDone    || 'Installation complete';
-  const ToastMsgDone      = dict.apps?.toastMsgDone      || 'Installation completed successfully.';
-
-  const { getToastSnippet } = require('./ps-snippets');
-  const notifyPrefix = notify ? getToastSnippet(ToastTitleProcess, ToastMsgProcess) : '';
-  const notifyAfter  = notify ? `    Send-UserToast -ToastTitle "${ToastTitleDone.replace(/"/g, '\\"')}" -ToastMessage "${ToastMsgDone.replace(/"/g, '\\"')}" -IconType "Information"` : '';
-
-  return `# =========================================================================
-# WINGET INSTALL - DROP & RUN
-# App: ${sanitizeAppName(cfg.name)} [${wingetId}]
-# Version: ${version}
-# Generado: ${new Date().toISOString()}
-# =========================================================================
-$wingetId = "${wingetId}"
-$wingetSource = "${wingetSource}"
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
-}
-
-# Guardia $PSScriptRoot (puede estar vacío en GPO startup / PS4)
-if (-not $PSScriptRoot) { $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $PSScriptRoot) { $PSScriptRoot = $PWD.Path }
-
-${getDedicatedRuntimeDetectionLogic()}
-
-$LogDir = "C:\\ProgramData\\AppDeploy_Logs"
-if (-not $ADDMDedicatedLogging -and -not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
-if (-not $ADDMDedicatedLogging) { Get-ChildItem "$LogDir\\*.log" -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force -ErrorAction SilentlyContinue }
-# Split-Path es pura string — no necesita acceso de red
-$NombreApp = if ($PSScriptRoot) { Split-Path -Leaf $PSScriptRoot } else { "UnknownApp" }
-$LogFile   = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Install_$($NombreApp)_$(Get-Date -Format 'yyyyMMdd_HHmmss').log" }
-if ($LogFile) { Start-Transcript -Path $LogFile -Force -ErrorAction SilentlyContinue }
-
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ===== AppDeploy Manager ============================="
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] App     : $NombreApp [winget: $wingetId | source: $wingetSource]"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Computer: $env:COMPUTERNAME"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] User    : $env:USERNAME"
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ====================================================="
-
-$TrackerFile = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Tracker_$NombreApp.json" }
-$UserTaskRoot = if ($ADDMDedicatedLogging) { Join-Path $env:TEMP ("ADDM_" + $NombreApp) } else { $LogDir }
-if (-not (Test-Path -LiteralPath $UserTaskRoot)) { New-Item -ItemType Directory -Path $UserTaskRoot -Force | Out-Null }
-$UserTaskName = "ADDM_Install_$NombreApp"
-$UserTaskPs1  = Join-Path $UserTaskRoot ("WingetUserInstall_" + $NombreApp + ".ps1")
-$UserTaskVbs  = Join-Path $UserTaskRoot ("WingetUserInstall_" + $NombreApp + ".vbs")
-
-function Clear-UserWingetArtifacts {
-    param(
-        [switch]$Quiet
-    )
-
-    try { Unregister-ScheduledTask -TaskName $UserTaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null } catch {}
-    foreach ($artifact in @($UserTaskPs1, $UserTaskVbs)) {
-        try {
-            if (Test-Path $artifact) { Remove-Item -Path $artifact -Force -ErrorAction SilentlyContinue }
-        } catch {}
-    }
-    if (-not $Quiet) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] INFO: User-scope artifacts cleaned for $NombreApp"
-    }
-}
-
-# ── Leer version desde manifiesto de red ─────────────────
-$CurrentVersion = "$version"
-$VersionFile = Join-Path $PSScriptRoot "version.json"
-if (Test-Path $VersionFile) {
-    try { $CurrentVersion = (Get-Content $VersionFile -Raw | ConvertFrom-Json).version } catch {}
-}
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Version : $CurrentVersion"
-
-# ── Salir si ya esta instalado en esta version ───────────
-${notifyPrefix}
-
-# ── Localizar winget (contexto SYSTEM / GPO startup) ─────
-# Varios métodos porque SYSTEM no tiene acceso normal a WindowsApps
-$Winget = $null
-
-# Método 1: PATH / stub sistema (Windows 11 22H2+)
-$fromPath = (Get-Command winget.exe -ErrorAction SilentlyContinue).Source
-if ($fromPath -and (Test-Path $fromPath)) { $Winget = $fromPath }
-
-# Método 2: Symlink en System32 (Windows 11 23H2+)
-if (-not $Winget) {
-    $p = "$env:SystemRoot\System32\winget.exe"
-    if (Test-Path $p) { $Winget = $p }
-}
-
-# Método 3: Enumerar WindowsApps con cmd /c dir (evita ACL de SYSTEM)
-if (-not $Winget) {
-    $appsBase = "$env:ProgramFiles\WindowsApps"
-    $entry = (& cmd.exe /c "dir /b /ad \`"$appsBase\`" 2>nul") -split "\`n" |
-             Where-Object { $_ -like 'Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe' } |
-             Sort-Object -Descending | Select-Object -First 1
-    if ($entry) { $Winget = "$appsBase\$($entry.Trim())\winget.exe" }
-}
-
-# Método 4: Get-AppxPackage (puede fallar en inicio, pero se intenta)
-if (-not $Winget) {
-    try {
-        $pkg = Get-AppxPackage -AllUsers "Microsoft.DesktopAppInstaller" -ErrorAction SilentlyContinue |
-               Sort-Object { [version]($_.Version -replace '[^0-9.]','') } -Descending | Select-Object -First 1
-        if ($pkg) {
-            $p = Join-Path $pkg.InstallLocation "winget.exe"
-            if (Test-Path $p) { $Winget = $p }
-        }
-    } catch {}
-}
-
-if (-not $Winget) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: winget.exe not found. Windows 10 21H2+ with App Installer (Microsoft Store) is required."
-    Stop-Transcript -ErrorAction SilentlyContinue
-    exit 1
-}
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] winget: $Winget"
-
-function Test-WingetPackageInstalled {
-    param(
-        [string]$WingetPath,
-        [string]$PackageId,
-        [string]$PackageSource = ''
-    )
-
-    try {
-        $listArgs = @('list', '--id', "$PackageId", '--exact', '--accept-source-agreements', '--disable-interactivity')
-        if ($PackageSource) { $listArgs += @('--source', "$PackageSource") }
-        $output = & $WingetPath @listArgs 2>&1 | Out-String
-        return ($LASTEXITCODE -eq 0 -and $output -match [regex]::Escape($PackageId))
-    } catch {
-        return $false
-    }
-}
-
-function Wait-WingetPackageInstalled {
-    param(
-        [string]$WingetPath,
-        [string]$PackageId,
-        [string]$PackageSource = '',
-        [int]$MaxAttempts = 5,
-        [int]$SleepSeconds = 3
-    )
-
-    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        if (Test-WingetPackageInstalled -WingetPath $WingetPath -PackageId $PackageId -PackageSource $PackageSource) {
-            return $true
-        }
-        if ($attempt -lt $MaxAttempts) {
-            Start-Sleep -Seconds $SleepSeconds
-        }
-    }
-    return $false
-}
-
-function Test-WingetUserTaskPending {
-    try {
-        return [bool](Get-ScheduledTask -TaskName $UserTaskName -ErrorAction SilentlyContinue)
-    } catch {
-        return $false
-    }
-}
-
-if ($TrackerFile -and (Test-Path -LiteralPath $TrackerFile)) {
-    try {
-        $t = Get-Content -LiteralPath $TrackerFile -Raw | ConvertFrom-Json
-        if ($t.version -eq $CurrentVersion -and $t.result -in @('success', 'scheduled')) {
-            $installedNow = Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource -MaxAttempts 2 -SleepSeconds 2
-            if ($installedNow) {
-                Clear-UserWingetArtifacts -Quiet
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Already installed (v$CurrentVersion, installation verified)"
-                Stop-Transcript -ErrorAction SilentlyContinue
-                exit 0
-            }
-
-            if ($t.result -eq 'scheduled' -and (Test-WingetUserTaskPending)) {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: Scheduled installation pending for $wingetId"
-                Stop-Transcript -ErrorAction SilentlyContinue
-                exit 0
-            }
-
-            if ($t.result -eq 'success') {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Tracker reported success, but $wingetId is not installed. Retrying."
-            } else {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Tracker reported a scheduled installation, but neither the app nor a pending task exists. Retrying."
-            }
-            Clear-UserWingetArtifacts -Quiet
-        }
-    } catch {}
-}
-
-# Actualizar fuentes (necesario en contexto SYSTEM; ignorar error si falla)
-try { & $Winget source update --disable-interactivity 2>&1 | Out-Null } catch {}
-
-# ── Instalar ─────────────────────────────────────────────
-# Códigos de salida conocidos de winget:
-#   0            = éxito
-#   1618         = otra instalación en curso (Windows Installer busy)
-#  -1978335212  = APPINSTALLER_CLI_ERROR_UPDATE_NOT_APPLICABLE (ya actualizado, éxito)
-#  -1978335189  = APPINSTALLER_CLI_ERROR_PACKAGE_ALREADY_INSTALLED (éxito)
-#  -1978335140  = APPINSTALLER_CLI_ERROR_NO_APPLICABLE_UPDATE (sin actualización, éxito)
-#  -1978335160  = APPINSTALLER_CLI_ERROR_NO_APPLICABLE_INSTALLER → reintentar sin --scope machine
-$WingetSuccess = @(0, 1618, -1978335212, -1978335189, -1978335140)
-$WingetNoScope = @(-1978335160, -1978335215, -1978335216)  # no machine-scope installer → retry sin scope
-$WingetUserOnly = @(-1978335146, -1978335215, -1978335216) # app solo usuario → instalar via tarea programada
-# MS Store apps are user-scope only — skip machine-scope attempt
-$IsMsStore = ($wingetSource -eq 'msstore')
-if ($IsMsStore) { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] INFO: MS Store source: machine scope does not apply; installing in user scope" }
-try {
-    $packageInstalled = $false
-    if (-not $IsMsStore) {
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Running: winget install --id $wingetId --source $wingetSource --scope machine"
-        & $Winget install --id "$wingetId" --source "$wingetSource" --silent --accept-package-agreements --accept-source-agreements --scope machine 2>&1 | Out-Null
-        $ec = $LASTEXITCODE
-        if ($ec -in $WingetNoScope) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: --scope machine is unsupported (code $ec). Retrying without --scope..."
-            & $Winget install --id "$wingetId" --source "$wingetSource" --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
-            $ec = $LASTEXITCODE
-        }
-    } else {
-        $ec = -1
-    }
-    if ($ec -in $WingetSuccess) {
-        $packageInstalled = Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource
-        if (-not $packageInstalled) {
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: winget returned success ($ec), but $wingetId could not be detected. Trying the user context."
-            $ec = -1
-        }
-    }
-    if ($ec -notin $WingetSuccess) {
-        # Último intento: --scope user (apps solo usuario)
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: Retrying with --scope user (user-only app, code $ec)..."
-        & $Winget install --id "$wingetId" --source "$wingetSource" --silent --accept-package-agreements --accept-source-agreements --scope user 2>&1 | Out-Null
-        $ec = $LASTEXITCODE
-        if ($ec -in $WingetSuccess) {
-            $packageInstalled = Wait-WingetPackageInstalled -WingetPath $Winget -PackageId $wingetId -PackageSource $wingetSource -MaxAttempts 3 -SleepSeconds 2
-            if (-not $packageInstalled) {
-                Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: winget returned success with --scope user ($ec), but SYSTEM could not detect the app. Scheduling installation at the next sign-in."
-                $ec = -1
-            }
-        }
-    }
-    if ($ec -notin $WingetSuccess) {
-        # App solo usuario que no puede instalarse en contexto SYSTEM → programar tarea de usuario
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: User app ($wingetId). Creating a scheduled task to install at the next sign-in..."
-        $taskName = $UserTaskName
-        try {
-            Clear-UserWingetArtifacts -Quiet
-            $userInstallPs1 = $UserTaskPs1
-            $userInstallVbs = $UserTaskVbs
-            $userInstallScript = @'
-$taskName = '__TASKNAME__'
-$wingetId = '__WINGET_ID__'
-$wingetSource = '__WINGET_SOURCE__'
-$trackerFile = '__TRACKER_FILE__'
-$currentVersion = '__CURRENT_VERSION__'
-$helperPs1 = '__HELPER_PS1__'
-$helperVbs = '__HELPER_VBS__'
-$appName = '__APP_NAME__'
-$successCodes = @(0, 1618, -1978335212, -1978335189, -1978335140)
-
-function Complete-UserWingetTask {
-    param(
-        [string]$Method = 'winget-usertask'
-    )
-
-    try {
-        @{
-            version = $currentVersion
-            installedAt = (Get-Date).ToString('o')
-            computer = $env:COMPUTERNAME
-            user = $env:USERNAME
-            result = 'success'
-            method = $Method
-            wingetId = $wingetId
-        } | ConvertTo-Json | Set-Content -Path $trackerFile -Force -Encoding UTF8
-    } catch {}
-
-    try { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null } catch {}
-    foreach ($file in @($helperPs1, $helperVbs)) {
-        try { Remove-Item -Path $file -Force -ErrorAction SilentlyContinue } catch {}
-    }
-    exit 0
-}
-
-function Test-WingetPackageInstalled {
-    param(
-        [string]$WingetPath,
-        [string]$PackageId,
-        [string]$PackageSource = ''
-    )
-
-    try {
-        $listArgs = @('list', '--id', "$PackageId", '--exact', '--accept-source-agreements', '--disable-interactivity')
-        if ($PackageSource) { $listArgs += @('--source', "$PackageSource") }
-        $output = & $WingetPath @listArgs 2>&1 | Out-String
-        return ($LASTEXITCODE -eq 0 -and $output -match [regex]::Escape($PackageId))
-    } catch {
-        return $false
-    }
-}
-
-function Wait-WingetPackageInstalled {
-    param(
-        [string]$WingetPath,
-        [string]$PackageId,
-        [string]$PackageSource = '',
-        [int]$MaxAttempts = 5,
-        [int]$SleepSeconds = 3
-    )
-
-    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        if (Test-WingetPackageInstalled -WingetPath $WingetPath -PackageId $PackageId -PackageSource $PackageSource) {
-            return $true
-        }
-        if ($attempt -lt $MaxAttempts) {
-            Start-Sleep -Seconds $SleepSeconds
-        }
-    }
-    return $false
-}
-
-$WingetUser = (Get-Command winget.exe -ErrorAction SilentlyContinue).Source
-if (-not $WingetUser -or -not (Test-Path $WingetUser)) {
-    $candidate = Join-Path $env:LOCALAPPDATA 'Microsoft\\WindowsApps\\winget.exe'
-    if (Test-Path $candidate) { $WingetUser = $candidate }
-}
-if (-not $WingetUser) {
-    $candidate = "$env:SystemRoot\\System32\\winget.exe"
-    if (Test-Path $candidate) { $WingetUser = $candidate }
-}
-if (-not $WingetUser) { exit 1 }
-
-if (Test-WingetPackageInstalled -WingetPath $WingetUser -PackageId $wingetId -PackageSource $wingetSource) {
-    Complete-UserWingetTask -Method 'winget-usertask-detected'
-}
-
-& $WingetUser install --id "$wingetId" --source "$wingetSource" --silent --accept-package-agreements --accept-source-agreements --scope user 2>&1 | Out-Null
-$ec = $LASTEXITCODE
-if (($ec -in $successCodes) -and (Wait-WingetPackageInstalled -WingetPath $WingetUser -PackageId $wingetId -PackageSource $wingetSource)) {
-    Complete-UserWingetTask
-}
-exit $ec
-'@
-            $userInstallScript = $userInstallScript.Replace('__TASKNAME__', $taskName)
-            $userInstallScript = $userInstallScript.Replace('__WINGET_ID__', $wingetId)
-            $userInstallScript = $userInstallScript.Replace('__WINGET_SOURCE__', $wingetSource)
-            $userInstallScript = $userInstallScript.Replace('__TRACKER_FILE__', $TrackerFile)
-            $userInstallScript = $userInstallScript.Replace('__CURRENT_VERSION__', $CurrentVersion)
-            $userInstallScript = $userInstallScript.Replace('__HELPER_PS1__', $userInstallPs1)
-            $userInstallScript = $userInstallScript.Replace('__HELPER_VBS__', $userInstallVbs)
-            $userInstallScript = $userInstallScript.Replace('__APP_NAME__', $NombreApp)
-            Set-Content -Path $userInstallPs1 -Value $userInstallScript -Encoding UTF8 -Force
-
-            $userInstallVbsContent = @'
-Dim shell
-Set shell = CreateObject("WScript.Shell")
-shell.Run "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""__HELPER_PS1__""", 0, False
-'@
-            $userInstallVbsContent = $userInstallVbsContent.Replace('__HELPER_PS1__', $userInstallPs1)
-            Set-Content -Path $userInstallVbs -Value $userInstallVbsContent -Encoding ASCII -Force
-
-            $action   = New-ScheduledTaskAction -Execute "wscript.exe" \`
-                          -Argument "//B //NoLogo \`"$userInstallVbs\`""
-            $trigger  = New-ScheduledTaskTrigger -AtLogOn
-            $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries \`
-                          -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -StartWhenAvailable
-            # Ejecutar como usuario interactivo que inicie sesion; evita depender de GroupId/idioma del SO
-            $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\\INTERACTIVE" -LogonType Interactive -RunLevel Limited
-            Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger \`
-                -Settings $settings -Principal $principal \`
-                -Description "Installation of $NombreApp via AD Deploy Manager" -Force -ErrorAction Stop | Out-Null
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: Scheduled task '$taskName' created; installation will run at the next user sign-in"
-            if ($TrackerFile) {
-                @{ version = $CurrentVersion; scheduledAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'scheduled'; method = 'winget-usertask'; wingetId = "$wingetId" } |
-                    ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8
-            }
-            Stop-Transcript -ErrorAction SilentlyContinue
-            exit 0
-        } catch {
-            throw "Could not create scheduled task '$taskName': $($_.Exception.Message)"
-        }
-    }
-
-    if (-not $packageInstalled) {
-        throw "winget completed without a blocking error, but the installation could not be confirmed for $wingetId"
-    }
-
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp installed successfully (v$CurrentVersion)"
-    Clear-UserWingetArtifacts -Quiet
-${notifyAfter}
-    if ($TrackerFile) {
-        @{ version = $CurrentVersion; installedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'success'; method = 'winget'; wingetId = "$wingetId" } |
-            ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8
-    }
-} catch {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Failed to install $NombreApp - $_"
-    if ($TrackerFile) {
-        @{ version = $CurrentVersion; failedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'failed'; error = $_.ToString() } |
-            ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8
-    }
-}
-Stop-Transcript -ErrorAction SilentlyContinue
-`;
-}
+function generateWinget(cfg) { return require('./winget-deployment').generate(cfg, 'install', getDedicatedRuntimeDetectionLogic()); }
 
 function generateODT(cfg) {
   const odtConfig  = cfg.odtConfig || {};
@@ -3562,15 +3092,15 @@ function generateODT(cfg) {
 
   return `# =========================================================================
 # MICROSOFT OFFICE ODT - DROP & RUN
-# Product: ${productId}  Canal: ${channel}  Idioma: ${language}
-# Versión: ${version}
-# Generado: ${new Date().toISOString()}
+# Product: ${productId}  Channel: ${channel}  Language: ${language}
+# Version: ${version}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 
-# Guardia $PSScriptRoot (puede estar vacío en GPO startup / PS4)
+# $PSScriptRoot fallback (may be empty during GPO startup / PS4)
 if (-not $PSScriptRoot) { $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 if (-not $PSScriptRoot) { $PSScriptRoot = $PWD.Path }
 
@@ -3593,17 +3123,18 @@ Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ===================================
 $TrackerFile = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Tracker_$NombreApp.json" }
 function Save-AppDeployTracker {
     param([hashtable]$Payload)
+    $Payload.generatorRevision = $ADDMGeneratorRevision
     if (-not $TrackerFile) { return }
     try { $Payload | ConvertTo-Json | Set-Content -Path $TrackerFile -Force -Encoding UTF8 } catch { }
 }
 
-# ── Leer manifiesto ──────────────────────────────────────
+# ── Read manifest ──────────────────────────────────────
 $CurrentVersion = "${version}"
 $VersionFile = Join-Path $PSScriptRoot "version.json"
 if (-not (Test-Path $VersionFile)) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SKIPPED: version.json was not found in $PSScriptRoot"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: version.json was not found in $PSScriptRoot"
     Stop-Transcript -ErrorAction SilentlyContinue
-    exit 0
+    exit 1
 }
 try {
     $Manifest       = Get-Content $VersionFile -Raw | ConvertFrom-Json
@@ -3616,7 +3147,7 @@ try {
 }
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Version : $CurrentVersion"
 
-# ── Comprobar si ya instalado (Office en registro + tracker) ─
+# ── Check whether already installed (Office registry and tracker) ─
 $OfficeInstalled = Get-ItemProperty \`
     "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*",
     "HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*" \`
@@ -3644,8 +3175,8 @@ if ($TargetOfficeInstalled -or $OfficeInstalled) {
     exit 0
 }
 
-# ── Localizar ODT setup.exe ──────────────────────────────
-# Si el admin dejó setup.exe en el share, usarlo directamente
+# ── Find ODT setup.exe ──────────────────────────────
+# Use setup.exe directly when the administrator supplied it on the share
 $OdtSetup = Join-Path $PSScriptRoot "setup.exe"
 
 if (-not (Test-Path $OdtSetup)) {
@@ -3655,7 +3186,7 @@ if (-not (Test-Path $OdtSetup)) {
     $OdtExtract = "$env:TEMP\\odt_$(Get-Random)"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-    # ── Intento 1: FWLink oficial (descarga directa sin HEAD) ──
+    # ── Attempt 1: official FWLink (direct download without HEAD) ──
     if (-not (Test-Path $OdtSetup -ErrorAction SilentlyContinue)) {
         try {
             $wc1 = New-Object System.Net.WebClient
@@ -3670,7 +3201,7 @@ if (-not (Test-Path $OdtSetup)) {
         } catch { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] WARNING: FWLink attempt failed: $_" }
     }
 
-    # ── Intento 2: URL de fallback conocida ──
+    # ── Attempt 2: known fallback URL ──
     if (-not (Test-Path $OdtSetup -ErrorAction SilentlyContinue)) {
         try {
             $OdtUrl2 = "https://download.microsoft.com/download/2/7/A/27AF1BE6-DD20-4CB4-B154-EBAB8A7D4A7E/officedeploymenttool_17531-20046.exe"
@@ -3696,7 +3227,7 @@ if (-not (Test-Path $OdtSetup)) {
     }
 }
 
-# ── Generar XML de configuración ─────────────────────────
+# ── Generate configuration XML ─────────────────────────
 $OfficeLogConfig = if ($ADDMDedicatedLogging) { "" } else { "  <Logging Level=\`"Standard\`" Path=\`"$LogDir\`" />" }
 $XmlContent = @"
 <Configuration>
@@ -3721,15 +3252,16 @@ ${notifyPrefix}
 ${notifyBefore}
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Installing Office. WARNING: this process may take 20 to 60 minutes."
 
-# ── Instalar ─────────────────────────────────────────────
+# ── Install ─────────────────────────────────────────────
 try {
-    Start-Process -FilePath $OdtSetup -ArgumentList "/configure \`"$XmlPath\`"" -Wait -NoNewWindow
-    if ($LASTEXITCODE -ne 0) { throw "ODT setup.exe exited with code $LASTEXITCODE" }
+    $odtProcess = Start-Process -FilePath $OdtSetup -ArgumentList "/configure \`"$XmlPath\`"" -Wait -NoNewWindow -PassThru
+    if ($odtProcess.ExitCode -notin @(0, 3010, 1641)) { throw "ODT setup.exe exited with code $($odtProcess.ExitCode)" }
 
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] OK: $NombreApp installed successfully (v$CurrentVersion)"
 ${notifyAfter}
     Save-AppDeployTracker -Payload @{ version = $CurrentVersion; hash = $CurrentHash; installedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'success'; method = 'odt'; product = "${productId}" }
 } catch {
+    $DeploymentExitCode = 1
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] ERROR: Failed to install $NombreApp - $_"
     Save-AppDeployTracker -Payload @{ version = $CurrentVersion; hash = $CurrentHash; failedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; result = 'failed'; error = $_.ToString() }
 }

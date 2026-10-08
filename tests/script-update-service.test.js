@@ -3,6 +3,13 @@ function clone(value) {
 }
 
 describe('script-update-service', () => {
+  it('refreshes scripts from an older fork revision even when the application version is unchanged', () => {
+    const service = require('../services/script-update-service');
+    const manifest = { scripts: { install: { path: 'install.ps1', generatedByAppVersion: '1.2.11', generatedByRevision: 'mod-rev-1.8' } } };
+    expect(service.inspectManifestVersions(manifest, {}, '1.2.11').needsUpdate).toBe(true);
+    manifest.scripts.install.generatedByRevision = 'mod-rev-2.1';
+    expect(service.inspectManifestVersions(manifest, {}, '1.2.11').needsUpdate).toBe(false);
+  });
   beforeEach(() => {
     vi.resetModules();
   });
@@ -56,7 +63,7 @@ describe('script-update-service', () => {
         installScriptPath: apps[1].deployedPath,
         uninstall: {},
         scripts: {
-          install: { path: apps[1].deployedPath, generatedAt: '2026-04-24T08:00:00.000Z', generatedByAppVersion: '1.2.7' },
+          install: { path: apps[1].deployedPath, generatedAt: '2026-04-24T08:00:00.000Z', generatedByAppVersion: '1.2.7', generatedByRevision: 'mod-rev-2.1' },
           updater: {}
         }
       }]
@@ -79,12 +86,12 @@ describe('script-update-service', () => {
               install: {
                 path: appRecord.deployedPath,
                 generatedAt: '2026-04-24T10:30:00.000Z',
-                generatedByAppVersion: '1.2.7'
+                generatedByAppVersion: '1.2.7', generatedByRevision: 'mod-rev-2.1'
               },
               uninstall: {
                 path: appRecord.uninstallDeployedPath,
                 generatedAt: '2026-04-24T10:30:00.000Z',
-                generatedByAppVersion: '1.2.7'
+                generatedByAppVersion: '1.2.7', generatedByRevision: 'mod-rev-2.1'
               },
               updater: manifest.scripts?.updater || {}
             }

@@ -8,7 +8,7 @@ Repository: [afaminx/SMBActiveDirectoryDeployManager](https://github.com/afaminx
 
 Based on [ActiveDirectoryDeployManager by gpandres](https://github.com/gpandres/ActiveDirectoryDeployManager).
 The application version is **1.2.11**. The current modification revision is
-**mod-rev-1.8**; these are separate version numbers.
+**mod-rev-2.1**; these are separate version numbers. The updater displays and compares the fork release version **2.1**, while deployment metadata retains the upstream application version **1.2.11**.
 
 ![Application screenshot](img/screenshot.png)
 
@@ -36,10 +36,7 @@ module and TCP port 9389.
 - Selecting English also translates dashboard telemetry, dialogs, tooltips,
   template controls and the Office wizard. Spanish uses its own GUI dictionary.
 
-The implementation is intended for both Samba AD and Microsoft AD. Local tests
-and package checks pass; real-domain GPMC and Windows 11 integration testing is
-still required. See [the manual validation plan](tests/ADMIN-VALIDATION.txt) and
-[revision notes](REVISION.txt).
+The implementation supports Samba AD and Microsoft AD. See [revision notes](REVISION.txt) for the changes in this fork.
 
 ## Features
 
@@ -84,12 +81,9 @@ Release executables are currently unsigned.
    when you want native domain/PDC discovery.
 4. Select Base Search OUs if you want to limit the OU browser.
 5. Check LDAP/GroupPolicy readiness and use **Test AD Connection** in Settings.
-6. Create a test deployment and link its GPO to a dedicated test OU before using
-   it with production computers.
+6. Create a deployment and link its GPO to the required OUs.
 
-Deployment scripts execute at computer startup. After `gpupdate /force`, reboot
-the test client to validate startup execution. Installers remain on the software
-share; they are not moved into SYSVOL.
+Deployment scripts execute at computer startup. Installers remain on the software share; they are not moved into SYSVOL.
 
 ## Development and build
 
@@ -109,8 +103,8 @@ Build the portable release:
 pnpm run build
 ```
 
-The build creates `codex/bin/mod-rev-1.8/win-unpacked/` and
-`codex/pkg/mod-rev-1.8/ADDeployManager-Portable.exe` in a standalone checkout.
+The build creates `codex/bin/mod-rev-2.1/win-unpacked/` and
+`codex/pkg/mod-rev-2.1/ADDeployManager-Portable.exe` in a standalone checkout.
 `pnpm run build:dir` creates the unpacked application only. Existing revision
 outputs are never overwritten. Select a new `ADDM_REVISION` for another build
 and preserve matching source and revision notes; in the revision-directory
@@ -126,23 +120,11 @@ The root `pnpm-lock.yaml` is the application's dependency lockfile. The optional
 logs server has its own `server/api/package-lock.json`. Dependencies, caches and
 generated test files are excluded from Git.
 
-## Validation
+## Automated checks
 
 Local tests cover generated PowerShell syntax, LDAP response shapes, input
 quoting, startup ownership, unrelated script/CSE preservation, policy versions,
 and mocked LDAP write failures with local file rollback.
-
-On the separate administration workstation, use the read-only diagnostic with
-your actual DC hostname:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\diagnose-samba-ad.ps1 -Server dc.example.test
-```
-
-Replace `dc.example.test` with your own DC. The diagnostic can also accept
-`-BaseOU` and `-GpoGuid` for a dedicated test OU/GPO. It does not change directory
-objects. Follow [ADMIN-VALIDATION.txt](tests/ADMIN-VALIDATION.txt) for the full
-GPMC, SYSVOL and Windows 11 test sequence.
 
 Legacy startup scripts without an ownership record require manual review before
 automatic removal. Avoid concurrent GPMC edits to a policy while the application
@@ -153,7 +135,7 @@ is best effort and incomplete rollback is reported.
 
 Report problems in this fork's
 [issue tracker](https://github.com/afaminx/SMBActiveDirectoryDeployManager/issues).
-Include the modification revision, operation, relevant error and test results;
+Include the modification revision, operation, relevant error and logs;
 remove credentials and private environment details from attached logs.
 
 Original application by **gpandres**. Fork maintained under **afaminx**.
@@ -162,3 +144,19 @@ author attribution are retained. Application release checks use this fork's
 GitHub repository.
 
 Deployment GPO names preserve punctuation and Unicode. Existing policies created under shortened names by earlier builds are recognized through an exact-name-first compatibility lookup; no AD rename is performed.
+
+Deployment scripts report failure and deferred user installations separately. User-only winget/Store apps are scheduled for an interactive sign-in using a language-independent group SID. MSI identity uses ProductCode/UpgradeCode rather than loose name prefixes, preventing unrelated products such as Nextcloud and Nextcloud Talk from matching. Regenerate affected app scripts and republish bundle scripts after upgrading; the script updater also checks the generator revision independently of the application version.
+
+### WinGet deployment
+
+In New Application, select Template → WinGet Package. Search by name or enter an exact package ID, choose winget or Microsoft Store, then select the installation scope. You can edit these settings on existing WinGet applications. Package search uses the local WinGet installation; an unavailable search does not prevent entering an ID manually. Installer scope is shown as unverified rather than guessed. Unsupported scope fails without switching to another scope.
+
+For all users: the startup script uses Microsoft.WinGet.Client in PowerShell 7 MTA under SYSTEM. Install PowerShell 7 on the client beforehand. The optional prerequisite repair may install the WinGet PowerShell module for all users and repair the package manager; it does not install PowerShell 7. Without repair enabled, missing prerequisites produce an explicit failure.
+
+For each user: the startup script registers a limited interactive group task and returns PENDING (60001). The task installs using winget.exe after each user's Windows sign-in and checks packages and trackers in that user's context. It remains registered for later users. SYSTEM does not invoke winget.exe. User results and logs are under LOCALAPPDATA/ADDeployManager; SYSTEM results are under ProgramData/AppDeploy_Logs. Dedicated logging sends pending, success and failure events if configured.
+
+The optional prerequisite repair is off by default. User repair uses the current user's module scope. Downloads require access to PowerShell Gallery/GitHub and applicable client permissions/policies. No credentials are stored. A user package requiring elevation can fail rather than prompting for administrator credentials. The deployment version controls processing; it is not a pinned WinGet installer version. Missing packages are installed and, when a new deployment is processed, available updates are applied.
+
+After upgrading, regenerate existing install/uninstall scripts, verify their scope and republish affected bundles. Old generated scripts are not replaced by copying the executable. Previously created ADDM_Install_* tasks from older scripts should be reviewed and removed manually for migrated applications; the new persistent tasks are ADDM_WinGet_*. Deleting an application does not automatically remove a task on disconnected clients. Machine bundles may remain pending for user apps; they cannot prove installation for every user.
+
+Application and bundle action menus stay within the window, open above their button when needed and scroll when the available height is limited.

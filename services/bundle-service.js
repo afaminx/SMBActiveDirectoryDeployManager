@@ -368,13 +368,13 @@ const bundleService = {
     const { getToastSnippet } = require('./ps-snippets');
     const notifyBlock = bundle.notifyUser ? getToastSnippet() : '';
     const startMsg = isUninstall
-      ? `Se estan desinstalando ${bundle.apps.length} aplicaciones del pack. No apague.`
-      : `Se estan instalando ${bundle.apps.length} aplicaciones del pack. No apague.`;
+      ? `Uninstalling ${appEntries.length} applications. Please do not turn off your computer.`
+      : `Installing ${appEntries.length} applications. Please do not turn off your computer.`;
     const endMsg = isUninstall
-      ? `Todas las apps del pack ${safeBundleName} se han desinstalado.`
-      : `Todas las apps del pack ${safeBundleName} se han procesado.`;
-    const notifyStartTitle = isUninstall ? 'Desinstalacion en proceso' : 'Instalacion en proceso';
-    const notifyEndTitle = isUninstall ? 'Desinstalacion completada' : 'Instalacion completada';
+      ? `All applications in ${safeBundleName} have been uninstalled.`
+      : `All applications in ${safeBundleName} have completed successfully.`;
+    const notifyStartTitle = isUninstall ? 'Uninstallation in progress' : 'Installation in progress';
+    const notifyEndTitle = isUninstall ? 'Uninstallation complete' : 'Installation complete';
     const trackerSuffix = isUninstall ? '_Uninstall' : '';
     const transcriptPrefix = isUninstall ? 'BundleUninstallLog' : 'BundleLog';
     const actionLabel = isUninstall ? 'uninstall' : 'install';
@@ -390,17 +390,26 @@ const bundleService = {
     const appBlocks = appEntries.map((app, i) => {
       return `
 # ── App ${i + 1}/${appEntries.length}: ${app.name} ──
-$AppScript = "${app.scriptPath.replace(/"/g, '`"')}"
+$AppScript = '${app.scriptPath.replace(/'/g, "''")}'
 if (Test-Path $AppScript) {
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] Ejecutando: ${app.name}..."
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] Running: ${app.name}..."
     try {
-        & powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File $AppScript
-        Write-Output "[$(Get-Date -Format 'HH:mm:ss')] OK: ${app.name}"
+        $LASTEXITCODE = 1
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $AppScript
+        $appExitCode = $LASTEXITCODE
+        if ($appExitCode -in @(0, 3010, 1641)) {
+            Write-Output "[$(Get-Date -Format 'HH:mm:ss')] OK: ${app.name} (exit $appExitCode)"
+        } elseif ($appExitCode -eq 60001) {
+            $BundlePending++
+            Write-Output "[$(Get-Date -Format 'HH:mm:ss')] PENDING: ${app.name} - waiting for user sign-in or a dependency"
+        } else { throw "Deployment script exited with code $appExitCode" }
     } catch {
+        $BundleFailures++
         Write-Output "[$(Get-Date -Format 'HH:mm:ss')] ERROR: ${app.name} - $_"
     }
 } else {
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] SKIP: ${app.name} - Script no encontrado"
+    $BundleFailures++
+    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] ERROR: ${app.name} - deployment script not found"
 }`;
     }).join('\n');
 
@@ -408,44 +417,54 @@ if (Test-Path $AppScript) {
 # BUNDLE: ${safeBundleName}
 # Apps: ${appEntries.map(a => a.name).join(', ')}
 # Version: ${bundle.version}
-# Generado: ${new Date().toISOString()}
+# Generated: ${new Date().toISOString()}
 # =========================================================================
 
 If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH } Catch { } ; Exit
+    Try { &"$ENV:WINDIR\\SysNative\\WindowsPowershell\\v1.0\\PowerShell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -File $PSCOMMANDPATH ; Exit $LASTEXITCODE } Catch { Exit 1 }
 }
 
 if (-not $PSScriptRoot) { $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 if (-not $PSScriptRoot) { $PSScriptRoot = $PWD.Path }
 ${getDedicatedRuntimeDetectionLogic()}
 
-$BundleName = "${safeBundleName}"
+$BundleName = '${safeBundleName.replace(/'/g, "''")}'
 $LogDir = "C:\\ProgramData\\AppDeploy_Logs"
 if (-not $ADDMDedicatedLogging -and -not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
 $BundleTracker = if ($ADDMDedicatedLogging) { $null } else { "$LogDir\\Tracker_Bundle_$($BundleName -replace '\\s','_')${trackerSuffix}.txt" }
 $BundleVersion = "${(bundle.version || '1.0.0').replace(/[^a-zA-Z0-9.]/g, '')}"
 
-# Comprobar si esta version exacta ya se ejecuto
+# Check whether this exact version has already run
 $LastVersion = if ($BundleTracker -and (Test-Path -LiteralPath $BundleTracker)) { Get-Content -LiteralPath $BundleTracker } else { "" }
-if ($LastVersion -eq $BundleVersion) { exit }
+try {
+    $previous = $LastVersion | ConvertFrom-Json -ErrorAction Stop
+    if ($previous.schema -eq 2 -and $previous.generatorRevision -eq 'mod-rev-2.1' -and $previous.version -eq $BundleVersion -and $previous.result -eq 'success') { exit 0 }
+} catch { }
+$BundleFailures = 0
+$BundlePending = 0
 
 if (-not $ADDMDedicatedLogging) { Start-Transcript -Path "$LogDir\\${transcriptPrefix}_$($BundleName -replace '\\s','_').log" -Append -Force }
 Write-Output "=========================================="
 Write-Output "Bundle: $BundleName v$BundleVersion [${actionLabel}]"
-Write-Output "Inicio: $(Get-Date)"
+Write-Output "Started: $(Get-Date)"
 Write-Output "=========================================="
 ${notifyBlock}
 ${notifyStart}
 ${appBlocks}
 
-${notifyEnd}
-
-# Marcar version como ejecutada
-if ($BundleTracker) { Set-Content -Path $BundleTracker -Value $BundleVersion -Force }
+if ($BundleFailures -eq 0 -and $BundlePending -eq 0) {
+    ${notifyEnd}
+    if ($BundleTracker) { @{ schema=2; generatorRevision='mod-rev-2.1'; version=$BundleVersion; result='success' } | ConvertTo-Json -Compress | Set-Content -LiteralPath $BundleTracker -Force }
+} elseif ($BundleTracker -and (Test-Path -LiteralPath $BundleTracker)) {
+    Remove-Item -LiteralPath $BundleTracker -Force -ErrorAction SilentlyContinue
+}
 Write-Output "=========================================="
-Write-Output "Bundle completado: $(Get-Date)"
+Write-Output "Bundle finished: $(Get-Date); failed=$BundleFailures; pending=$BundlePending"
 Write-Output "=========================================="
-    if (-not $ADDMDedicatedLogging) { Stop-Transcript }
+    if (-not $ADDMDedicatedLogging) { Stop-Transcript -ErrorAction SilentlyContinue }
+if ($BundleFailures -gt 0) { exit 1 }
+if ($BundlePending -gt 0) { exit 60001 }
+exit 0
     `;
   },
 

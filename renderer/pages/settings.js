@@ -895,13 +895,15 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
     const result = await window.api.config.set(data);
     if (result.success) {
       this.currentConfig = result.data || { ...currentConfig, ...data };
+      await window.initI18n();
+      App.updateAppUpdateBanner();
+      App.updateSidebarLanguage();
       if (isLangChanged) {
-        await window.initI18n(); // Reload the dictionary immediately 
-        App.updateSidebarLanguage();
         App.toast(t('settings.restartRequired'), 'warning');
         App.navigate('settings'); // Reload the page to reflect translations
       } else {
         App.toast(t('settings.saved'), 'success');
+        App.navigate('settings');
       }
     } else {
       App.toast(t('common.error') + ': ' + result.error, 'error');

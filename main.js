@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
-const { getCurrentAppVersion } = require('./services/app-version');
+const { getCurrentAppVersion, getCurrentForkVersion } = require('./services/app-version');
 
 let mainWindow;
 
@@ -449,9 +449,10 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('scriptUpdates:getStatus', () => scriptUpdateService.getStatus());
   ipcMain.handle('updates:getCurrent', () => ({
-    currentVersion: getCurrentAppVersion()
+    currentVersion: getCurrentForkVersion(),
+    upstreamVersion: getCurrentAppVersion()
   }));
-  ipcMain.handle('updates:check', async () => updateService.checkForUpdates(getCurrentAppVersion()));
+  ipcMain.handle('updates:check', async () => updateService.checkForUpdates(getCurrentForkVersion()));
   ipcMain.handle('updates:openReleasePage', async () => {
     try {
       await shell.openExternal(updateService.RELEASE_PAGE_URL);

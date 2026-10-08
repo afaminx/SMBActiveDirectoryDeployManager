@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { resolveNamedSubdirectory } = require('./path-utils');
 const { compareVersions, normalizeVersion } = require('./update-service');
-const { getCurrentAppVersion } = require('./app-version');
+const { getCurrentAppVersion, getCurrentGeneratorRevision } = require('./app-version');
 
 function createEmptyStatus(currentAppVersion = '') {
   return {
@@ -46,6 +46,7 @@ function normalizeScriptMeta(entry = {}, fallbackPath = '') {
   return {
     path: pathValue,
     generatedAt: typeof entry.generatedAt === 'string' ? entry.generatedAt : '',
+    generatedByRevision: typeof entry.generatedByRevision === 'string' ? entry.generatedByRevision : '',
     generatedByAppVersion: normalizeVersion(entry.generatedByAppVersion || '')
       || (typeof entry.generatedByAppVersion === 'string' ? entry.generatedByAppVersion.trim() : '')
       || ''
@@ -75,10 +76,10 @@ function inspectManifestVersions(manifest, appRecord, currentAppVersion) {
     ? compareVersions(uninstallMeta.generatedByAppVersion || '0.0.0', normalizedCurrentVersion)
     : 0;
 
-  if (installMeta.path && (!installMeta.generatedByAppVersion || compareInstall < 0)) {
+  if (installMeta.path && (!installMeta.generatedByAppVersion || compareInstall < 0 || installMeta.generatedByRevision !== getCurrentGeneratorRevision())) {
     reasons.push('install-script-outdated');
   }
-  if (uninstallMeta.path && (!uninstallMeta.generatedByAppVersion || compareUninstall < 0)) {
+  if (uninstallMeta.path && (!uninstallMeta.generatedByAppVersion || compareUninstall < 0 || uninstallMeta.generatedByRevision !== getCurrentGeneratorRevision())) {
     reasons.push('uninstall-script-outdated');
   }
 

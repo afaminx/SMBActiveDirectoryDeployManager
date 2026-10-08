@@ -270,6 +270,8 @@ function normalizeAppRecord(app) {
     assignedOUs
   };
 
+  normalized.wingetScope = normalized.wingetScope || ((normalized.wingetSource === 'msstore' || normalized.wingetId === 'Spotify.Spotify') ? 'user' : 'machine');
+  normalized.wingetRepair = normalized.wingetRepair === true;
   normalized.uninstall = normalizeUninstallConfig(normalized.uninstall, normalized);
   normalized.detection = normalizeDetectionConfig(normalized.detection);
   normalized.dependsOn = normalizeDependency(normalized.dependsOn);
@@ -416,6 +418,10 @@ function syncAppShareManifest(appRecord) {
       appVersion: typeof manifest.appVersion === 'string' ? manifest.appVersion : '',
       version: normalized.version || manifest.version || '1.0.0',
       template: normalized.template || manifest.template || 'generic',
+      wingetId: normalized.wingetId || '',
+      wingetSource: normalized.wingetSource || 'winget',
+      wingetScope: normalized.wingetScope,
+      wingetRepair: normalized.wingetRepair,
       notifyUser: typeof normalized.notifyUser === 'boolean' ? normalized.notifyUser : !!manifest.notifyUser,
       installScriptPath,
       publishedAction,
@@ -579,6 +585,8 @@ const appService = {
       configXmlPath: data.configXmlPath || '',
       wingetId: data.wingetId || '',
       wingetSource: data.wingetSource || '',
+      wingetScope: data.wingetScope || ((data.wingetSource === 'msstore' || data.wingetId === 'Spotify.Spotify') ? 'user' : 'machine'),
+      wingetRepair: data.wingetRepair === true,
       odtConfig: data.odtConfig || null,
       customParams: data.customParams || {},
       templateFiles: data.templateFiles || {},

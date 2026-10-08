@@ -258,10 +258,7 @@ const BundlesPage = {
   },
 
   toggleMenu(btn) {
-    const dropdown = btn.nextElementSibling;
-    const wasVisible = dropdown.classList.contains('visible');
-    document.querySelectorAll('.app-card-dropdown.visible').forEach(d => d.classList.remove('visible'));
-    if (!wasVisible) dropdown.classList.add('visible');
+    return AppsListModule.toggleMenu(btn);
   },
 
   normalizeOUDNs(value) {

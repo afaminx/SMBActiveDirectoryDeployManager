@@ -31,6 +31,8 @@ const _DEFAULTS = {
     template:              '',
     wingetId:              '',
     wingetSource:          'winget',
+    wingetScope:           'user',
+    wingetRepair:          false,
     catalogTab:            'catalog',
     catalogSearch:         '',
     catalogCat:            'Todo',
@@ -223,6 +225,8 @@ const WizardState = {
       template:           tpl.template,
       wingetId:           tpl.wingetId,
       wingetSource:       tpl.wingetSource,
+      wingetScope:        tpl.wingetScope,
+      wingetRepair:       tpl.wingetRepair,
       catalogTab:         tpl.catalogTab,
       templateInstallers: _clone(tpl.templateInstallers),
 

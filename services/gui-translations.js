@@ -1,5 +1,4 @@
-// Previously hard-coded GUI strings and missing dictionary entries.
-// Keep placeholders, PowerShell variable names and both languages intact.
+// GUI translations for English and Spanish.
 module.exports = {
   "additional": {
     "english": {
@@ -80,7 +79,23 @@ module.exports = {
       "bundles.uninstallMissingApps": "Some apps in the bundle have no uninstall configuration",
       "bundles.uninstallPrepareMsg": "Prepare the uninstall script for the bundle",
       "bundles.uninstallReverseHint": "Apps in the bundle run in reverse order to avoid dependency conflicts.",
-      "bundles.uninstallPrepared": "Bundle uninstall script prepared successfully."
+      "bundles.uninstallPrepared": "Bundle uninstall script prepared successfully.",
+      "winget.templateHint": "Deploy any WinGet package without writing PowerShell.",
+      "winget.packageId": "Package ID",
+      "winget.source": "Source",
+      "winget.search": "Search packages",
+      "winget.scope": "Installation scope",
+      "winget.user": "For each user at sign-in",
+      "winget.machine": "For all users at computer startup",
+      "winget.unverified": "Installer scope support is not verified. Unsupported scope will fail without switching scope.",
+      "winget.machineHint": "Requires PowerShell 7 and Microsoft.WinGet.Client on the client. Runs as SYSTEM.",
+      "winget.userHint": "Runs separately for every signed-in user, without administrator credentials.",
+      "winget.repair": "Install or repair missing WinGet prerequisites",
+      "winget.repairHint": "Disabled by default. Allows downloading the WinGet module and repairing App Installer. PowerShell 7 must be installed separately for computer-wide deployment.",
+      "winget.searching": "Searching…",
+      "winget.noResults": "No packages found. You can enter the package ID directly.",
+      "winget.searchFailed": "Package search failed",
+      "winget.invalidId": "Enter a valid WinGet package ID."
     },
     "spanish": {
       "apps.uninstallNotConfigured": "Esta app no tiene una desinstalacion configurada.",
@@ -160,7 +175,23 @@ module.exports = {
       "bundles.uninstallReverseHint": "Las apps del bundle se ejecutarán en orden inverso para evitar conflictos entre dependencias.",
       "bundles.uninstallPrepared": "Bundle de desinstalacion preparado correctamente.",
       "bundles.deleteBtn": "Eliminando...",
-      "bundles.gpoError": "Error al crear la GPO: "
+      "bundles.gpoError": "Error al crear la GPO: ",
+      "winget.templateHint": "Implementa paquetes WinGet sin escribir PowerShell.",
+      "winget.packageId": "ID del paquete",
+      "winget.source": "Origen",
+      "winget.search": "Buscar paquetes",
+      "winget.scope": "Ámbito de instalación",
+      "winget.user": "Para cada usuario al iniciar sesión",
+      "winget.machine": "Para todos los usuarios al iniciar el equipo",
+      "winget.unverified": "El ámbito del instalador no está verificado. Si no es compatible, la instalación falla sin cambiar de ámbito.",
+      "winget.machineHint": "Requiere PowerShell 7 y Microsoft.WinGet.Client en el cliente. Se ejecuta como SYSTEM.",
+      "winget.userHint": "Se ejecuta para cada usuario que inicia sesión, sin credenciales de administrador.",
+      "winget.repair": "Instalar o reparar requisitos de WinGet",
+      "winget.repairHint": "Desactivado por defecto. Permite descargar el módulo WinGet y reparar App Installer. PowerShell 7 debe instalarse por separado para instalaciones del equipo.",
+      "winget.searching": "Buscando…",
+      "winget.noResults": "No se encontraron paquetes. Puedes introducir el ID directamente.",
+      "winget.searchFailed": "Error al buscar paquetes",
+      "winget.invalidId": "Introduce un ID de paquete WinGet válido."
     }
   },
   "phrases": [
@@ -813,6 +844,11 @@ module.exports = {
       "key": "maximize",
       "en": "Maximize",
       "es": "Maximizar"
+    },
+    {
+      "key": "shareRestored",
+      "en": "Connection to the network share restored",
+      "es": "Conexion al share restablecida"
     },
     {
       "key": "close",
