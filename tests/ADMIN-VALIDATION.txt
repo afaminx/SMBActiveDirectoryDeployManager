@@ -38,6 +38,13 @@ MANUAL FUNCTIONAL TESTS (explicitly invoke each operation yourself)
    Check new Logs and Recent Activity entries: App created, Script deployed and
    validation failures must use English. Historical stored messages are retained;
    errors produced by system tools or custom scripts may use their own locale.
+   GUI language validation: select English in Settings, then check Dashboard
+   telemetry (Deployment telemetry / Successful installations / Failed
+   installations), unavailable-connection warnings, tooltips, new-app/template
+   dialogs, detection/uninstall/dependency controls, Office wizard and Settings.
+   Switch to Spanish and back to English; revisit each screen and restart once.
+   Confirm selected-language UI text and window tooltips update without changing
+   configuration values, custom template labels, package IDs or deployment data.
 5. Run diagnostics with -GpoGuid. Verify scripts.ini contains powershell.exe and
    the repository script path; the Scripts computer CSE/tool GUIDs are present.
    Confirm gpt.ini Version and LDAP versionNumber describe the same 32-bit value
@@ -78,3 +85,13 @@ startup removal refuses those GPOs; review/migrate manually on the admin machine
 Concurrent external GPMC edits are not locked by the app. Do not edit the same
 test policy externally during an application write. LDAP and SMB are separate
 services, so rollback is best effort and any incomplete rollback is reported.
+
+Revision 1.8 - GPO display-name regression (administration workstation)
+1. Back up application configuration. Start revision 1.8 against the same configured DC/share.
+2. Without creating or renaming any GPO, refresh GPO Management. An existing Deploy_Notepad GPO previously requested as Deploy_Notepad++ must be listed with its real AD name/GUID.
+3. Refresh OUs. Its real OU links must remain assigned, with no false GPO missing badge. Compare GUID and OU links with GPMC. Confirm refresh performs no AD writes.
+4. On a dedicated test OU, explicitly create a NEW test application/GPO using a unique name with ++, Unicode and an apostrophe. Verify the full display name survives in GPMC and the GUI; refresh/restart and check links.
+5. Explicitly link/unlink the dedicated test GPO and remove its startup script; verify only this policy changes. Delete the dedicated test GPO only after verifying its identity.
+6. For an existing legacy deployment, explicitly test link/unlink on a dedicated OU. The existing GUID must be reused, with no duplicate policy. Exact display names take priority when both exact and legacy policies exist.
+7. If multiple configured names reduce to the same legacy name, do not apply changes until the saved names are corrected to the actual unique AD names. Reconciliation must report AMBIGUOUS_GPO_NAME instead of clearing assignments.
+8. Test the deployment on a test client with gpupdate /force and restart. Check normal startup, SYSVOL and CSE/version behavior, with no ADWS requirement.

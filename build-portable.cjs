@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { build, Platform } = require('electron-builder');
-const revision = process.env.ADDM_REVISION || 'mod-rev-1.6';
+const revision = process.env.ADDM_REVISION || 'mod-rev-1.8';
 if (!/^mod-rev-\d+\.\d+$/.test(revision)) throw Error('Invalid ADDM_REVISION');
 const sourceRevision = path.basename(__dirname);
 if (/^mod-rev-\d+\.\d+$/.test(sourceRevision) && sourceRevision !== revision) {

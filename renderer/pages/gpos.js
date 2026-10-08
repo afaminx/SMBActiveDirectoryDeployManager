@@ -35,7 +35,7 @@ const GposPage = {
         <button class="btn btn-sm btn-secondary" id="btn-gpo-deselect">${t('common.cancel') || 'Cancelar'}</button>
         <button class="btn btn-sm btn-danger" id="btn-gpo-bulk-delete">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          Eliminar seleccionados
+          ${t('gui.deleteSelected')}
         </button>
       </div>
 
@@ -47,7 +47,7 @@ const GposPage = {
                 <th style="padding: 16px; width: 40px;">
                   <label class="checkbox-wrapper checkbox-wrapper--compact" style="width:22px;margin:0 auto;">
                     <input type="checkbox" class="checkbox-select" id="gpo-select-all">
-                    <span class="sr-only">Seleccionar todas las GPOs</span>
+                    <span class="sr-only">${t('gui.selectAllGpos')}</span>
                   </label>
                 </th>
                 <th style="padding: 16px;">${t('gpos.name')}</th>
@@ -141,7 +141,7 @@ const GposPage = {
     if (this.localLinkCounts) {
       list = list.filter(g => {
         const nameKey = (g.DisplayName || '').trim().toLowerCase();
-        return Object.prototype.hasOwnProperty.call(this.localLinkCounts, nameKey);
+        return Object.keys(this.localLinkCounts).some(name => GpoNames.resolve(name, this.gposCache, Object.keys(this.localLinkCounts)) === g);
       });
     }
     
@@ -191,7 +191,7 @@ const GposPage = {
       bulkBar.style.display = this.selectedIds.size > 0 ? 'flex' : 'none';
     }
     if (countEl) {
-      countEl.textContent = `${this.selectedIds.size} GPO${this.selectedIds.size !== 1 ? 's' : ''} seleccionados`;
+      countEl.textContent = `${this.selectedIds.size} GPO${this.selectedIds.size !== 1 ? 's' : ''}${t('gui.selected')}`;
     }
 
     // Update select-all checkbox
@@ -212,7 +212,7 @@ const GposPage = {
       const isSelected = this.selectedIds.has(g.Id);
       const guidLower = (g.Id || '').toLowerCase().replace(/[{}]/g, '');
       const gpoKey = (g.DisplayName || '').trim().toLowerCase();
-      const localCount = this.localLinkCounts ? (this.localLinkCounts[gpoKey] ?? 0) : 0;
+      const localCount = this.localLinkCounts ? Math.max(0, ...Object.keys(this.localLinkCounts).filter(name => GpoNames.resolve(name, this.gposCache, Object.keys(this.localLinkCounts)) === g).map(name => this.localLinkCounts[name])) : 0;
       const adCount = this.linkCounts ? (this.linkCounts[guidLower] ?? 0) : null;
       const effectiveCount = adCount === null ? localCount : Math.max(adCount, localCount);
       const isLoadingAdCount = adCount === null;
@@ -225,7 +225,7 @@ const GposPage = {
           <td style="padding: 16px;">
             <label class="checkbox-wrapper checkbox-wrapper--compact" style="width:22px;margin:0 auto;">
               <input type="checkbox" class="checkbox-select gpo-cb" data-id="${App._esc(g.Id)}" ${isSelected ? 'checked' : ''}>
-              <span class="sr-only">Seleccionar ${App._esc(g.DisplayName)}</span>
+              <span class="sr-only">${t('gui.select')}${App._esc(g.DisplayName)}</span>
             </label>
           </td>
           <td style="padding: 16px;">
@@ -279,10 +279,10 @@ const GposPage = {
     const listHtml = names.length <= 8
       ? names.map(n => `<li style="font-family:monospace;font-size:13px;">${App._esc(n)}</li>`).join('')
       : names.slice(0, 6).map(n => `<li style="font-family:monospace;font-size:13px;">${App._esc(n)}</li>`).join('')
-        + `<li style="color:var(--text-muted);font-size:13px;">... y ${names.length - 6} mas</li>`;
+        + `<li style="color:var(--text-muted);font-size:13px;">${t('gui.and')}${names.length - 6}${t('gui.moreLi')}</li>`;
 
     App.openModal(t('apps.deleteConfirm'), `
-      <p style="margin-bottom:12px;">Se van a eliminar <strong>${count} GPO${count > 1 ? 's' : ''}</strong>:</p>
+      <p style="margin-bottom:12px;">${t('gui.theFollowingWillBeDeleted')}<strong>${count} GPO${count > 1 ? 's' : ''}</strong>:</p>
       <ul style="max-height:200px;overflow-y:auto;margin:0 0 16px 0;padding-left:20px;list-style:disc;">
         ${listHtml}
       </ul>
@@ -291,13 +291,13 @@ const GposPage = {
       </div>
     `, `
       <button class="btn btn-secondary" onclick="App.closeModal()">${t('common.cancel')}</button>
-      <button class="btn btn-danger" id="btn-confirm-bulk-gpo-delete">Eliminar ${count} GPO${count > 1 ? 's' : ''}</button>
+      <button class="btn btn-danger" id="btn-confirm-bulk-gpo-delete">${t('gui.delete')}${count} GPO${count > 1 ? 's' : ''}</button>
     `);
 
     document.getElementById('btn-confirm-bulk-gpo-delete').addEventListener('click', async () => {
       App.closeModal();
       const tbody = document.getElementById('gpos-tbody');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;"><span class="spinner"></span> Eliminando ${count} GPOs...</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;"><span class="spinner"></span> ${t('gui.deleting')}${count} GPOs...</td></tr>`;
 
       let successCount = 0;
       let failCount = 0;

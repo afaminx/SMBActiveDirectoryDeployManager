@@ -127,7 +127,7 @@ const DeploymentsPage = {
                     <td>${gpoName
                       ? `<span class="badge badge-info">${App._esc(gpoName)}</span>`
                       : configuredApp
-                        ? `<span class="badge badge-warning" title="App configurada sin GPO asignada">⚠ Sin GPO</span>`
+                        ? `<span class="badge badge-warning" title="App configurada sin GPO asignada">⚠ ${t('gui.noGpo')}</span>`
                         : '<span class="text-muted" style="font-size:11px;">No configurada</span>'
                     }</td>
                     <td>${app.files.length}</td>
@@ -210,7 +210,7 @@ const DeploymentsPage = {
         ${hash ? `
           <div>
             <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${t('deployments.hash')}</div>
-            <div style="background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:10px 14px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:var(--font-sm);color:var(--accent-secondary);word-break:break-all;cursor:pointer;" onclick="navigator.clipboard.writeText('${App._esc(hash)}'); App.toast('${t('deployments.hashCopied')}','success');" title="Click para copiar">${App._esc(hash)}</div>
+            <div style="background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:10px 14px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:var(--font-sm);color:var(--accent-secondary);word-break:break-all;cursor:pointer;" onclick="navigator.clipboard.writeText('${App._esc(hash)}'); App.toast('${t('deployments.hashCopied')}','success');" title="${t('gui.clickToCopy')}">${App._esc(hash)}</div>
             <div style="font-size:var(--font-xs);color:var(--text-muted);margin-top:4px;">${t('deployments.clickToCopy')}</div>
           </div>
         ` : ''}
@@ -246,7 +246,7 @@ const DeploymentsPage = {
                 <span class="file-meta">${App.formatBytes(f.size)} · ${App.formatDate(f.modified)}</span>
               </li>`;
           }).join('')}
-        </ul>` : '<p class="text-muted">Carpeta vacía</p>';
+        </ul>` : `<p class="text-muted">${t('gui.folderIsEmpty')}</p>`;
 
       App.openModal(`📂 ${appName}`, body);
     } catch (err) {

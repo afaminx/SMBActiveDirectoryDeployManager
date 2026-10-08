@@ -552,7 +552,7 @@ const CatalogPage = {
       const message = t('catalog.simpleModeCreateHint');
       App.toast(
         message === 'catalog.simpleModeCreateHint'
-          ? 'Cambia al modo avanzado para crear apps desde el catalogo.'
+          ? t('gui.switchToAdvancedModeToCreateAppsFrom')
           : message,
         'info'
       );

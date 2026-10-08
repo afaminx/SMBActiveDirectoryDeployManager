@@ -63,7 +63,7 @@ const SettingsPage = {
         <div class="form-group">
           <label class="form-label">${t('settings.defaultGpo')}</label>
           <select class="form-select" id="cfg-default-gpo">
-            <option value="">${t('common.cancel')} / Ninguna</option>
+            <option value="">${t('common.cancel')} / ${t('gui.none')}</option>
           </select>
           <p class="form-hint">${t('settings.defaultGpoHint')}</p>
         </div>
@@ -103,35 +103,35 @@ const SettingsPage = {
       <div class="settings-section">
         <div class="settings-section-title">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          Estado de RSAT / Active Directory
+          ${t('gui.groupPolicyToolsActiveDirectoryStatus')}
         </div>
         <div class="flex items-center gap-md mb-md">
           <div class="rsat-dot" style="width:12px;height:12px;border-radius:50%;background:${App.rsatAvailable ? 'var(--accent-secondary)' : 'var(--accent-danger)'}"></div>
           <div>
             <strong style="color:${App.rsatAvailable ? 'var(--accent-secondary)' : 'var(--accent-danger)'}">
-              ${App.rsatAvailable ? 'RSAT Disponible' : 'RSAT No Disponible'}
+              ${App.rsatAvailable ? t('gui.directoryServicesAvailable') : t('gui.directoryServicesUnavailable')}
             </strong>
-            <p class="text-muted text-sm">${App.rsatAvailable ? 'LDAP está disponible; las operaciones GPO usan el módulo GroupPolicy.' : 'Las funciones de AD están deshabilitadas.'}</p>
+            <p class="text-muted text-sm">${App.rsatAvailable ? t('gui.ldapIsAvailableGpoOperationsUseTheGrouppolicy') : t('gui.directoryOperationsAreDisabled')}</p>
           </div>
         </div>
         ${!App.rsatAvailable ? `
           <div class="rsat-warning">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <div>
-              Para habilitar las funciones de Active Directory, instala RSAT ejecutando como Administrador:
+              ${t('gui.installGroupPolicyManagementToolsByRunningThis')}
               <code>Add-WindowsCapability -Online -Name Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0</code>
-              <p class="mt-sm">Comprueba también LDAP y el DC configurado con Test Conexión AD.</p>
+              <p class="mt-sm">${t('gui.alsoCheckLdapAndTheConfiguredDcUsing')}</p>
             </div>
           </div>
         ` : ''}
         <div class="flex gap-sm">
           <button class="btn btn-secondary" id="btn-check-rsat">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Comprobar RSAT
+            ${t('gui.checkGroupPolicyTools')}
           </button>
           <button class="btn btn-secondary" id="btn-test-ad">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            Test Conexión AD
+            ${t('gui.testAdConnection')}
           </button>
         </div>
       </div>
@@ -190,7 +190,7 @@ const SettingsPage = {
     if (App.rsatAvailable) {
       this.loadOUs(config.baseOUs || (config.baseOU ? [config.baseOU] : []));
     } else {
-      document.getElementById('cfg-baseou-tree').innerHTML = `<p style="padding:8px;font-size:13px;color:var(--text-muted);">RSAT requerido para listar OUs</p>`;
+      document.getElementById('cfg-baseou-tree').innerHTML = `<p style="padding:8px;font-size:13px;color:var(--text-muted);">${t('gui.ldapConnectivityIsRequiredToListOus')}</p>`;
     }
 
     await this._renderLogsBlock(config);
@@ -252,7 +252,7 @@ const SettingsPage = {
           <button class="btn btn-secondary btn-sm" id="cfg-btn-inspect" type="button">${t('settings.inspectCert') || 'Obtener Fingerprint (Certificado)'}</button>
           <button class="btn btn-secondary btn-sm" id="cfg-btn-save-ded" type="button">${t('settings.saveDedConfig') || 'Guardar URL/Fingerprint'}</button>
         </div>
-        <p class="form-hint" style="margin-top:-6px;margin-bottom:10px;">No es necesario instalar el certificado en el sistema. Al obtener y guardar el fingerprint, la aplicación confiará de forma segura y exclusiva en este servidor.</p>
+        <p class="form-hint" style="margin-top:-6px;margin-bottom:10px;">${t('gui.youDoNotNeedToInstallTheCertificate')}</p>
         <div id="cfg-cert-status" style="display:none;font-size:12px;margin-bottom:10px;"></div>
 
         <hr style="border:none;border-top:1px solid var(--border-color);margin:12px 0;">
@@ -379,7 +379,7 @@ const SettingsPage = {
           <strong>Sujeto:</strong> ${App._esc(i.subject)}<br>
           <strong>Emisor:</strong> ${App._esc(i.issuer)}<br>
           <strong>Validez:</strong> ${new Date(i.validFrom).toLocaleDateString()} al ${new Date(i.validTo).toLocaleDateString()}<br>
-          <strong style="color:var(--accent-secondary)">Fingerprint SHA-256 extraído correctamente.</strong>
+          <strong style="color:var(--accent-secondary)">${t('gui.sha256FingerprintRetrievedSuccessfully')}</strong>
         </div>
       `;
     });
@@ -423,7 +423,7 @@ const SettingsPage = {
     err.style.display = 'none';
 
     if (!baseUrl || !apiKey) {
-      err.textContent = t('settings.adminLoginMissing') || 'URL y clave requeridas';
+      err.textContent = t('settings.adminLoginMissing') || t('gui.urlAndKeyAreRequired');
       err.style.display = 'block';
       return;
     }
@@ -479,7 +479,7 @@ const SettingsPage = {
       return;
     }
     App.toast(
-      `${t('settings.shareLogConfigPublished') || 'Configuracion publicada'}: ${result.path}`,
+      `${t('settings.shareLogConfigPublished') || t('gui.configurationPublished')}: ${result.path}`,
       'success'
     );
     await this._loadTokensTable();
@@ -574,7 +574,7 @@ const SettingsPage = {
     if (!el) return;
     if (!r.success) { el.innerHTML = `<div class="logs-muted">${App._esc(r.error)}</div>`; return; }
     const rows = r.data || [];
-    if (!rows.length) { el.innerHTML = `<div class="logs-muted">${t('settings.empty') || 'Sin entradas'}</div>`; return; }
+    if (!rows.length) { el.innerHTML = `<div class="logs-muted">${t('settings.empty') || t('gui.noEntries')}</div>`; return; }
 
     const LIMIT = 3;
     const collapsible = rows.length > LIMIT;
@@ -582,7 +582,7 @@ const SettingsPage = {
     el.innerHTML = `
       ${collapsible ? `
       <div style="margin-bottom:6px;">
-        <input class="form-input" id="cfg-keys-search" placeholder="Buscar API key..."
+        <input class="form-input" id="cfg-keys-search" placeholder="${t('gui.searchApiKeys')}"
           style="font-size:12px;padding:4px 8px;height:28px;width:100%;">
       </div>` : ''}
       <table class="logs-table">
@@ -616,7 +616,7 @@ const SettingsPage = {
 
     el.querySelectorAll('[data-revoke]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm(t('settings.confirmRevoke') || '¿Revocar?')) return;
+        if (!confirm(t('settings.confirmRevoke') || t('gui.revoke'))) return;
         const r = await window.api.admin.revokeKey(btn.dataset.revoke);
         if (!r.success) App.toast(r.error, 'error');
         await this._loadKeysTable();
@@ -655,7 +655,7 @@ const SettingsPage = {
     if (!el) return;
     if (!r.success) { el.innerHTML = `<div class="logs-muted">${App._esc(r.error)}</div>`; return; }
     const rows = r.data || [];
-    if (!rows.length) { el.innerHTML = `<div class="logs-muted">${t('settings.empty') || 'Sin entradas'}</div>`; return; }
+    if (!rows.length) { el.innerHTML = `<div class="logs-muted">${t('settings.empty') || t('gui.noEntries')}</div>`; return; }
     el.innerHTML = `
       <table class="logs-table">
         <thead><tr><th>shareId</th><th style="width:140px;">${t('settings.colCreated') || 'Creada'}</th></tr></thead>
@@ -670,7 +670,7 @@ const SettingsPage = {
     if (!el) return;
     if (!r.success) { el.innerHTML = `<div class="logs-muted">${App._esc(r.error)}</div>`; return; }
     const rows = r.data || [];
-    if (!rows.length) { el.innerHTML = `<div class="logs-muted">${t('settings.empty') || 'Sin entradas'}</div>`; return; }
+    if (!rows.length) { el.innerHTML = `<div class="logs-muted">${t('settings.empty') || t('gui.noEntries')}</div>`; return; }
     el.innerHTML = `
       <table class="logs-table">
         <thead><tr><th>shareId</th><th style="width:60px;">${t('settings.colUses') || 'Usos'}</th><th style="width:140px;">${t('settings.colExpires') || 'Expira'}</th></tr></thead>
@@ -681,7 +681,7 @@ const SettingsPage = {
 
   _modalFooter(idCreate) {
     return `
-      <button class="btn btn-secondary" id="modal-close-btn">${t('common.close') || 'Cerrar'}</button>
+      <button class="btn btn-secondary" id="modal-close-btn">${t('common.close') || t('gui.close')}</button>
       <button class="btn btn-primary" id="${idCreate}">${t('settings.create') || 'Crear'}</button>
     `;
   },
@@ -693,7 +693,7 @@ const SettingsPage = {
   _resultBlock(id) {
     return `
       <div id="modal-result" style="display:none;margin-top:12px;padding:10px;border-radius:6px;background:var(--bg-secondary);">
-        <p class="form-hint">${t('settings.copyOnce') || 'Cópialo ahora — no se volverá a mostrar'}</p>
+        <p class="form-hint">${t('settings.copyOnce') || t('gui.copyItNowItWillNotBeShown')}</p>
         <code id="${id}" style="display:block;padding:8px;background:rgba(0,0,0,0.25);border-radius:4px;word-break:break-all;font-family:ui-monospace,monospace;font-size:12px;"></code>
       </div>
     `;
@@ -749,13 +749,13 @@ const SettingsPage = {
       <div class="form-group">
         <label class="form-label" style="display:flex;align-items:center;gap:8px;">
           <input type="checkbox" id="modal-unlimited" checked>
-          ${t('settings.unlimitedToken') || 'Sin expiración / usos ilimitados'}
+          ${t('settings.unlimitedToken') || t('gui.noExpirationUnlimitedUses')}
         </label>
       </div>
       <div class="form-group" id="modal-limits-group" style="display:none;">
         <label class="form-label">${t('settings.ttlHours') || 'TTL (horas)'}</label>
         <input class="form-input" id="modal-ttl" type="number" value="720" min="1" max="87600">
-        <label class="form-label" style="margin-top:8px;">${t('settings.uses') || 'Usos máximos'}</label>
+        <label class="form-label" style="margin-top:8px;">${t('settings.uses') || t('gui.maximumUses')}</label>
         <input class="form-input" id="modal-uses" type="number" value="1000" min="1" max="1000000">
       </div>
       ${this._resultBlock('modal-newtoken')}
@@ -810,7 +810,7 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
       try {
         const result = await window.api.ad.testADConnection();
         if (result.success) {
-          App.toast(`LDAP disponible — ${result.data.server} (${result.data.domain})`, 'success');
+          App.toast(`${t('gui.ldapAvailable')} — ${result.data.server} (${result.data.domain})`, 'success');
         } else {
           App.toast('Error AD: ' + result.error, 'error');
         }
@@ -1111,7 +1111,7 @@ document.getElementById('btn-save-config').addEventListener('click', () => this.
         📁 ${App._esc(selectedName)}
         <button type="button" class="btn btn-ghost btn-sm cfg-baseou-remove" data-dn="${App._esc(dn)}" style="font-size:11px;padding:0 4px;min-height:auto;">✕</button>
       </span>`;
-    }).join('') + `<button type="button" class="btn btn-ghost btn-sm" id="cfg-baseou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || 'Borrar selección'}</button>`;
+    }).join('') + `<button type="button" class="btn btn-ghost btn-sm" id="cfg-baseou-clear" style="font-size:11px;margin-left:4px;opacity:.7;">${t('common.clear') || t('gui.clearSelection')}</button>`;
 
     selectedEl.querySelectorAll('.cfg-baseou-remove').forEach(btn => {
       btn.onclick = (e) => {

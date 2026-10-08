@@ -1,86 +1,65 @@
-Codex revision: mod-rev-1.6
+Codex revision: mod-rev-1.8
 Upstream application version: 1.2.11 (unchanged)
-Based on Codex revision: mod-rev-1.5
+Based on Codex revision: mod-rev-1.7
 Date: 2026-10-07
-Build status: SUCCESS - Windows x64 unpacked and portable executable.
+Build status: SUCCESS - Windows x64 unpacked application and portable executable.
 
 Files changed:
+README.md
+REVISION.txt
 build-portable.cjs
 package.json
-README.md
-renderer\pages\apps-actions.js
-renderer\pages\apps-template.js
-renderer\pages\apps-wizard.js
-renderer\pages\bundles.js
-renderer\pages\gpos.js
-renderer\pages\ou-tree.js
-renderer\pages\settings.js
-renderer\pages\setup.js
-tests\build-layout.test.js
-REVISION.txt
-
-Combined source files changed from mod-rev-1.4:
-build-portable.cjs
-main.js
-package.json
-README.md
-renderer\pages\apps-actions.js
-renderer\pages\apps-template.js
-renderer\pages\apps-wizard.js
-renderer\pages\bundles.js
-renderer\pages\dashboard.js
-renderer\pages\gpos.js
-renderer\pages\logs.js
-renderer\pages\ou-tree.js
-renderer\pages\settings.js
-renderer\pages\setup.js
-REVISION.txt
-services\ad-service.js
-services\app-service.js
-services\file-service.js
-services\log-sink\remote-sink.js
-services\script-service.js
-services\share-health.js
-tests\ADMIN-VALIDATION.txt
-tests\build-layout.test.js
-tests\log-language.test.js
-tests\script-path.test.js
-tests\script-service.test.js
+renderer/index.html
+renderer/pages/gpos.js
+renderer/pages/ou-tree.js
+renderer/utils/gpo-names.js
+services/ad-service.js
+services/gpo-name-snippets.js
+tests/ADMIN-VALIDATION.txt
+tests/build-layout.test.js
+tests/gpo-names.test.js
 
 Changes made:
-Inherited tested hidden-share and English diagnostics fix from successful revision 1.5. Completed the renderer language scan: translated remaining hard-coded uninstall/bundle, GPO-delete, OU fallback, configuration import/export, enrollment and template status errors/fallbacks. Existing selected-language dictionaries remain available. Build outputs retain a new revision; the completed 1.5 package is preserved.
-
-Combined fix from revision 1.4:
-Corrected hidden/administrative SMB share rejection: $ and legitimate filename characters are accepted and preserved through the createGPO single-quoted PowerShell literal. Invalid Windows characters, device/relative paths, non-executable extensions, traversal outside and sibling-prefix paths remain rejected. Absolute path handling uses Windows semantics. Translated AD/file/share errors, application/server log messages, activity displays, template errors, generated install/uninstall diagnostics into English. Retained configured-language translations and locale error matching. Added path/PowerShell AST, log escaping/language, generated script syntax tests.
+The prior display-name sanitizer removed punctuation and Unicode: Deploy_Notepad++ was created as Deploy_Notepad while the app retained its full configured name. Consequently the management page filtered out the real GPO, OU orphan detection reported it missing, and reconciliation returned actual names that did not match the app configuration.
+All GPO operations now use safely single-quoted, nonempty display-name literals, doubling apostrophes and rejecting control characters. A shared GroupPolicy resolver prefers case-insensitive exact matches, then the historical shortened name. Creation reuses an existing legacy GUID instead of making a duplicate; linking, unlinking, existence checks, deletion and startup-script removal resolve the same policy. No AD rename or data migration occurs on refresh. Configured names with a colliding legacy form prevent ambiguous fallback writes/reconciliation. Managed link enumeration reads GroupPolicy once, joins real gPLink GUIDs to the requested configuration names and retains those names in the returned map. Renderer management filtering/local counts and OU orphan detection use matching exact-first legacy rules. Invalid GPO JSON now reports an error instead of silently returning an empty successful list.
 
 ADWS-dependent code found:
-No new production dependency. Historical upstream Get-ADDomain, Get-ADOrganizationalUnit, Get-ADObject, Set-ADObject and ActiveDirectory imports were replaced in earlier revisions.
+No new runtime dependency. Historical upstream Get-ADDomain, Get-ADOrganizationalUnit, Get-ADObject, Set-ADObject and ActiveDirectory imports remain replaced from revision 1.2.
 
 ADWS-dependent code replaced:
-Earlier System.DirectoryServices RootDSE/domain/OU/gPLink/GPO LDAP access remains. Current credentials and explicit DC remain; native discovery fallback remains. GroupPolicy GPO management is preserved.
+No additional ADWS replacement needed in this revision. Existing DirectoryEntry/DirectorySearcher RootDSE/domain/OU/gPLink/GPO LDAP access, current credentials and explicit configured DC/native discovery remain intact.
 
 Remaining ActiveDirectory/ADWS references:
-Native System.DirectoryServices.ActiveDirectory discovery and explanatory/test audit references only. No runtime ADWS module/cmdlet requirement.
+README.md:71 and tests/ADMIN-VALIDATION.txt:25 discuss the expected independent Get-ADDomain failure on Samba. tests/ldap-compatibility.test.js:81 is the forbidden-cmdlet audit expression. REVISION.txt contains historical documentation. Native System.DirectoryServices.ActiveDirectory DC Locator discovery remains safe; it is not the ActiveDirectory PowerShell module or ADWS. No production runtime cmdlet/module dependency remains. GroupPolicy Import-Module/Get-GPO/New-GPO/New-GPLink/Set-GPLink/Remove-GPLink/Remove-GPO are preserved.
 
 Local tests performed:
-Isolated cached frozen-lockfile install; 111 tests in 14 suites passed. Actual Windows PowerShell parser verified 16 AD operation scripts, a hidden-share literal assignment and eight install/uninstall scripts. Existing ownership/CSE/INI/version/rollback fixtures passed. All 84 JavaScript files passed syntax checks. Build succeeded with Electron 33.4.11. Package source, checksums and protected original/older inventory verification performed separately. No live domain mutations performed.
+125 passing tests in 16 suites. Nine GPO-name regressions cover preserved punctuation/Unicode/apostrophes, invalid names, case-insensitive exact priority, shortened Notepad++ identity, ambiguous aliases, the actual management table and OU loader with mocked DOM/APIs, malformed JSON, generation of all eight affected operations, real PowerShell execution of mocked GroupPolicy exact/legacy/missing/error/collision resolution, and actual generated managed-link code returning requested names. Existing generated-operation PowerShell syntax, LDAP/INI/CSE/version/ownership/rollback and hidden-share tests passed. All 89 source JavaScript/CJS files passed syntax checks; source and test staging matched before building. 59 packaged code files match source with no runtime ADWS calls. Packaged Electron language/GPO compatibility smoke tests passed. Portable and binary ZIP checksums generated.
 
 Local tests passed:
-111/111; all syntax/fixture checks above. 113 pre-report canonical files matched the tested staging copy. All 56 packaged code files matched source; no runtime ADWS calls. Packaged Electron successfully loaded the AD service and validated a hidden-share path unchanged. Publishing source/inventory/privacy, binary ZIP/checksum and 19,080 protected original/older-revision file checks passed.
+All tests and build passed. Protected-file and publishing checks are recorded in the private audit and verified before delivery.
 
 Tests not possible on development machine:
-Real LDAP/GroupPolicy/SYSVOL, GPMC and Windows 11 startup execution. No RSAT installed or domain access assumed.
+Live Samba/Microsoft AD, GroupPolicy/RSAT, SYSVOL/GPMC and Windows 11 policy startup integration. No production-domain access or RSAT installation performed. Renderer verification uses mocked APIs/DOM.
 
 Manual tests required on administration workstation:
-Follow tests/ADMIN-VALIDATION.txt: dedicated test OU/GPO, configured DC and LDAP health despite failing Get-ADDomain, OU/GPO list, hidden-share deployment, exact $ preserved in scripts.ini, matching policy versions, GPMC links/startup entry, gpupdate /force then reboot, client read access to the hidden share, unrelated script/CSE preservation and safe unlink/delete. Verify new activity/error diagnostics are English.
+Follow tests/ADMIN-VALIDATION.txt, especially the revision 1.8 section:
+1. Back up the application configuration and launch 1.8 with the same DC/share.
+2. Refresh GPO Management without recreating policies: existing Deploy_Notepad must appear with its real AD name/GUID despite the saved Deploy_Notepad++ name.
+3. Refresh OUs: compare assignments to GPMC; no false GPO missing and no cleared real links. Refresh must not rename/create/write AD policies.
+4. Explicitly create a uniquely named ++/Unicode/apostrophe test GPO on a dedicated test OU. Verify full display name, GUID, links, startup script, CSE registrations and versions in GPMC. Refresh/restart.
+5. Explicitly test link/unlink/startup removal/delete only for a dedicated test policy. Test legacy reuse on a dedicated test OU and verify no duplicate GUID/policy. Exact names take precedence when both forms exist.
+6. Colliding configured legacy names require correction to unique actual AD names before changes; reconciliation must fail with AMBIGUOUS_GPO_NAME.
+7. On a Windows 11 test client run gpupdate /force and reboot, verifying startup deployment without ADWS and without unrelated policy changes.
 
 Known issues:
-Unsigned executable/default icon. Real-domain integration pending. System tools/user scripts and historical persisted messages retain their own language. Legacy script ownership requires review; LDAP/SMB rollback is best effort; no concurrent GPMC locking. Application update comparator uses 1.2.11 semantic version, not modification suffixes.
+Live integration remains pending. Legacy alias inference reproduces the old sanitizer; verify the real AD name/GUID before modifying an old deployment. Ambiguous configuration must be corrected explicitly. Previously shortened GPOs retain their actual name. Unsigned/default-icon executable; existing version/update and SYSVOL rollback/concurrent external-edit limitations remain. Saved user labels/historical messages retain original language. No Git commit/push/release performed.
 
 Notes:
-Source: ./codex/src/mod-rev-1.6/
-Binary: ./codex/bin/mod-rev-1.6/win-unpacked/
-Binary ZIP: ./codex/bin/mod-rev-1.6/ADDeployManager-mod-rev-1.6-win-x64.zip
-Portable: ./codex/pkg/mod-rev-1.6/ADDeployManager-Portable.exe
-Publishing checkout: ./codex/gitpub/SMBActiveDirectoryDeployManager/ (latest complete source only; preserve Git history/remotes).
-No source export in pkg. Publishing instructions belong in package UPLOAD.txt. Original references and older revisions remain immutable. No GitHub push performed.
+Source: ./codex/src/mod-rev-1.8/
+Binary: ./codex/bin/mod-rev-1.8/win-unpacked/
+Binary ZIP: ./codex/bin/mod-rev-1.8/ADDeployManager-mod-rev-1.8-win-x64.zip
+Portable: ./codex/pkg/mod-rev-1.8/ADDeployManager-Portable.exe
+Publishing checkout: ./codex/gitpub/SMBActiveDirectoryDeployManager/
+Fork: https://github.com/afaminx/SMBActiveDirectoryDeployManager
+Publishing instructions: ./codex/pkg/mod-rev-1.8/UPLOAD.txt
+Original source/binaries/packages and all completed revisions remain immutable. No publishing-only documents or source archives in source or pkg.
